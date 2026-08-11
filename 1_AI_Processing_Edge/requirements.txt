@@ -1,0 +1,18 @@
+# YOLOv11 & Pytorch
+ultralytics==8.0.200 # Hoặc phiên bản mới nhất hỗ trợ yolo11
+torch
+torchvision
+torchaudio
+
+# Computer Vision & Tối ưu hóa mô hình
+opencv-python
+numpy
+tensorrt
+
+# Tracking & Toán học
+filterpy # Dùng cho thuật toán Kalman Filter dự đoán quỹ đạo
+scipy
+
+# Tiện ích
+python-dotenv
+requests

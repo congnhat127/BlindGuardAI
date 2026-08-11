@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15
+    container_name: blindguard_db
+    restart: always
+    environment:
+      POSTGRES_USER: ${DB_USER:-blindguard}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-blindguard_password}
+      POSTGRES_DB: ${DB_NAME:-blindguard_db}
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  backend:
+    build: 
+      context: ./backend_api
+    container_name: blindguard_backend
+    restart: always
+    ports:
+      - "${API_PORT:-8000}:8000"
+    depends_on:
+      - db
+    environment:
+      - DATABASE_URL=postgresql://${DB_USER:-blindguard}:${DB_PASSWORD:-blindguard_password}@db:5432/${DB_NAME:-blindguard_db}
+
+volumes:
+  pgdata:
