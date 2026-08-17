@@ -131,6 +131,7 @@ export function StepDimensions() {
             {derived ? (
               <TopDownView
                 geometry={derived.geometry}
+                isRigid={profile.meta.vehicle_type === 'rigid'}
                 dictionary={dictionary}
                 highlight={focused}
                 className="max-h-[420px]"
