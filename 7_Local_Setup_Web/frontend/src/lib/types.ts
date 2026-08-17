@@ -4,7 +4,7 @@
  */
 
 export type VehicleType = 'articulated' | 'rigid'
-export type CameraId = 'MIRROR_R' | 'MIRROR_L' | 'FRONT_CAM'
+export type CameraId = 'MIRROR_R' | 'MIRROR_L' | 'FRONT_CAM' | 'REAR_CAM'
 export type Verdict = 'pass' | 'warn' | 'fail'
 export type CheckStatus = 'pass' | 'warn' | 'error'
 
@@ -149,12 +149,20 @@ export interface DerivationBasisEntry {
   note: string
 }
 
+export interface MeasurementGuideEntry {
+  key: string
+  label: string
+  how_to_measure: string
+  typical_range: string
+}
+
 export interface DeriveResponse {
   base: VehicleBase
   geometry: DerivedGeometry
   camera_positions: Record<CameraId, [number, number, number]>
   warnings: SanityWarning[]
   basis: Record<string, DerivationBasisEntry>
+  measurement_guide: MeasurementGuideEntry[]
 }
 
 export type Point = [number, number]
@@ -176,10 +184,14 @@ export interface ZonePreview {
     is_rigid: boolean
   }
   stopping: { d_reaction_m: number; d_braking_m: number; d_total_m: number }
-  vehicle: { cab: Point[]; chassis: Point[]; trailer: Point[]; pivot: Point }
+  vehicle: VehicleShape
   reference_points: Record<string, Point>
   zones: Record<string, Point[]>
 }
+
+export type VehicleShape =
+  | { kind: 'articulated'; cab: Point[]; chassis: Point[]; trailer: Point[]; pivot: Point }
+  | { kind: 'rigid'; body: Point[]; pivot: Point }
 
 export interface ZoneDictionaryEntry {
   label: string

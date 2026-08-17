@@ -40,7 +40,7 @@ import {
 } from '../../components/ui'
 import { useApp } from '../../store/app'
 
-const ORDER: CameraId[] = ['MIRROR_R', 'MIRROR_L', 'FRONT_CAM']
+const ORDER: CameraId[] = ['MIRROR_R', 'MIRROR_L', 'FRONT_CAM', 'REAR_CAM']
 
 export function StepCalibrate() {
   const { profile, patchCamera } = useApp()
@@ -54,12 +54,27 @@ export function StepCalibrate() {
   const [solveHeight, setSolveHeight] = useState(true)
   const [solution, setSolution] = useState<SolveResponse | null>(null)
   const [verified, setVerified] = useState<VerifyResponse | null>(null)
-  const [busy, setBusy] = useState<'solve' | 'verify' | 'commit' | null>(null)
+  const [busy, setBusy] = useState<'solve' | 'verify' | 'commit' | 'upload' | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [note, setNote] = useState<string>('')
+  const [hasUploadedImage, setHasUploadedImage] = useState(false)
+  const [imageSize, setImageSize] = useState<[number, number] | null>(null)
 
   const camera = profile?.cameras[cameraId]
   const profileId: string | undefined = profile?.meta.profile_id
+
+  function refreshImageStatus(pid: string) {
+    api
+      .imageStatus(pid, cameraId)
+      .then((response) => {
+        setHasUploadedImage(response.has_uploaded_image)
+        setImageSize(response.image_size)
+      })
+      .catch(() => {
+        setHasUploadedImage(false)
+        setImageSize(null)
+      })
+  }
 
   // Doi camera -> nap lai bang vat moc, xoa diem da cham.
   useEffect(() => {
@@ -69,6 +84,7 @@ export function StepCalibrate() {
     setVerified(null)
     setError(null)
     setBust(Date.now())
+    setLive(false)
     api
       .referenceCones(profileId, cameraId)
       .then((response) => {
@@ -76,7 +92,44 @@ export function StepCalibrate() {
         setNote(response.note)
       })
       .catch(() => setCones([]))
+    refreshImageStatus(profileId)
   }, [profileId, cameraId])
+
+  async function uploadImage(file: File) {
+    if (!profileId || !camera) return
+    setBusy('upload')
+    setError(null)
+    try {
+      const result = await api.uploadCameraImage(profileId, cameraId, file)
+      // Server tu chinh width/height cua camera trong ho so theo dung anh -
+      // dong bo lai o client de luoi met chieu dung ti le, khong bi lech.
+      const [width, height] = result.image_size
+      patchCamera(cameraId, {
+        width,
+        height,
+        intrinsics: { ...camera.intrinsics, cx: width / 2, cy: height / 2 },
+      })
+      setBust(Date.now())
+      setPlaced([])
+      refreshImageStatus(profileId)
+    } catch (exception) {
+      setError(exception instanceof ApiError ? exception.message : 'Tải ảnh thất bại.')
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  async function removeImage() {
+    if (!profileId) return
+    setBusy('upload')
+    try {
+      await api.deleteCameraImage(profileId, cameraId)
+      setBust(Date.now())
+      refreshImageStatus(profileId)
+    } finally {
+      setBusy(null)
+    }
+  }
 
   // Luoi met chieu lai moi khi goc lap hoac ong kinh doi.
   const refreshGrid = useCallback(async () => {
@@ -191,8 +244,8 @@ export function StepCalibrate() {
             ),
           }))}
         />
-        <Badge tone={calibratedCount === 3 ? 'ok' : 'warn'}>
-          {calibratedCount}/3 camera đã căn chỉnh
+        <Badge tone={calibratedCount === 4 ? 'ok' : 'warn'}>
+          {calibratedCount}/4 camera đã căn chỉnh
         </Badge>
       </div>
 
@@ -203,31 +256,67 @@ export function StepCalibrate() {
           dense
           actions={
             <div className="flex items-center gap-2">
-              <Button size="sm" variant="ghost" onClick={() => setBust(Date.now())}>
-                Chụp lại
-              </Button>
-              <Button size="sm" variant={live ? 'primary' : 'default'} onClick={() => setLive((v) => !v)}>
-                {live ? 'Dừng hình trực tiếp' : 'Xem trực tiếp'}
-              </Button>
+              <label className="cursor-pointer">
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0]
+                    if (file) void uploadImage(file)
+                    event.target.value = ''
+                  }}
+                />
+                <Button size="sm" as="span" loading={busy === 'upload'}>
+                  Tải ảnh camera lên
+                </Button>
+              </label>
+              {hasUploadedImage && (
+                <Button size="sm" variant="ghost" onClick={removeImage}>
+                  Bỏ ảnh, dùng mô phỏng
+                </Button>
+              )}
+              {!hasUploadedImage && (
+                <>
+                  <Button size="sm" variant="ghost" onClick={() => setBust(Date.now())}>
+                    Chụp lại
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant={live ? 'primary' : 'default'}
+                    onClick={() => setLive((v) => !v)}
+                  >
+                    {live ? 'Dừng hình trực tiếp' : 'Xem trực tiếp'}
+                  </Button>
+                </>
+              )}
             </div>
           }
         >
           <div className="p-3">
-            <CameraCanvas
-              imageUrl={
-                live
-                  ? api.streamUrl(profileId, cameraId)
-                  : api.snapshotUrl(profileId, cameraId, bust)
-              }
-              loupeUrl={api.snapshotUrl(profileId, cameraId, bust)}
-              imageSize={[camera.width, camera.height]}
-              cones={cones}
-              placed={placed}
-              onPlace={setPlaced}
-              gridLines={gridLines}
-              showGrid={showGrid}
-              live={live}
-            />
+            {!hasUploadedImage && (
+              <Callout tone="warn" title="Đang dùng ảnh mô phỏng">
+                Đây là hình vẽ giả lập, không phải ảnh camera thật. Nếu camera đã lắp xong, chụp ảnh
+                bằng điện thoại và bấm "Tải ảnh camera lên" để căn chỉnh trên ảnh thật.
+              </Callout>
+            )}
+            <div className={!hasUploadedImage ? 'mt-3' : ''}>
+              <CameraCanvas
+                imageUrl={
+                  live && !hasUploadedImage
+                    ? api.streamUrl(profileId, cameraId)
+                    : api.snapshotUrl(profileId, cameraId, bust)
+                }
+                loupeUrl={api.snapshotUrl(profileId, cameraId, bust)}
+                imageSize={imageSize ?? [camera.width, camera.height]}
+                cones={cones}
+                placed={placed}
+                onPlace={setPlaced}
+                gridLines={gridLines}
+                showGrid={showGrid}
+                live={live && !hasUploadedImage}
+              />
+            </div>
             <div className="mt-2 flex flex-wrap items-center gap-4">
               <Toggle
                 checked={showGrid}
@@ -236,7 +325,7 @@ export function StepCalibrate() {
                 hint="Lưới phải trùng vạch kẻ và vật mốc thật thì góc mới đúng"
               />
             </div>
-            {live && (
+            {live && !hasUploadedImage && (
               <Callout tone="warn">
                 Đang xem trực tiếp. Nên bấm "Dừng hình trực tiếp" trước khi chạm điểm — ảnh tĩnh cho
                 độ chính xác cao hơn và kính lúp nét hơn.
@@ -536,7 +625,6 @@ function VerifyCard({ result }: { result: VerifyResponse }) {
 // --- Chinh tay -------------------------------------------------------------
 function ManualAngles({
   camera,
-  rollSupported,
   onChange,
 }: {
   camera: CameraConfig
@@ -544,10 +632,10 @@ function ManualAngles({
   onChange: (patch: Partial<CameraConfig>) => void
 }) {
   return (
-    <Panel title="Chỉnh tay" subtitle="Kéo thanh trượt cho lưới mét trùng vạch kẻ thật">
+    <Panel title="Chỉnh tay (nếu không dùng giải tự động)" subtitle="Kéo cho lưới mét trùng vạch kẻ thật">
       <div className="space-y-3">
         <Slider
-          label="Góc chúc (pitch)"
+          label="Góc cúi xuống của camera"
           unit="°"
           min={-60}
           max={20}
@@ -557,7 +645,7 @@ function ManualAngles({
           marks={[-60, -20, 20]}
         />
         <Slider
-          label="Góc dạt (yaw)"
+          label="Góc quay ngang của camera"
           unit="°"
           min={-180}
           max={180}
@@ -566,30 +654,6 @@ function ManualAngles({
           onChange={(value) => onChange({ yaw_deg: value })}
           marks={[-180, 0, 180]}
         />
-        <div className={rollSupported === false ? 'opacity-45' : ''}>
-          <Slider
-            label="Góc lắc hông (roll)"
-            unit="°"
-            min={-30}
-            max={30}
-            step={0.1}
-            value={camera.roll_deg}
-            onChange={(value) => onChange({ roll_deg: value })}
-            marks={[-30, 0, 30]}
-          />
-        </div>
-        {rollSupported === false && (
-          <Callout tone="warn" title="Roll chưa có hiệu lực">
-            Engine hiện chưa áp dụng góc roll: hàm <span className="font-mono">get_rotation_matrix_3d</span>{' '}
-            trong <span className="font-mono">camera_calibration.py</span> có nhận{' '}
-            <span className="font-mono">roll_deg</span> và tính{' '}
-            <span className="font-mono">r = radians(roll_deg)</span> nhưng không đưa{' '}
-            <span className="font-mono">r</span> vào ma trận trả về (
-            <span className="font-mono">Rz @ R0 @ Rx</span>). Giá trị nhập ở đây được lưu lại nhưng
-            chưa ảnh hưởng phép chiếu. Khi engine bổ sung phép xoay quanh trục dọc, web tự nhận ra và
-            bật lại ô này.
-          </Callout>
-        )}
       </div>
     </Panel>
   )

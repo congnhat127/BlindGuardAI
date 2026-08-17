@@ -49,7 +49,7 @@ export function Wizard() {
                       {item.label}
                     </span>
                     <span className="block text-[11px] text-ink-500">
-                      {item.id === 'calibrate' ? `${calibratedCount}/3 camera` : item.hint}
+                      {item.id === 'calibrate' ? `${calibratedCount}/4 camera` : item.hint}
                     </span>
                   </span>
                 </button>

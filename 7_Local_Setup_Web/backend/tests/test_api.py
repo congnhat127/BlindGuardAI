@@ -55,7 +55,7 @@ def test_derive_endpoint_returns_geometry_and_warnings(client):
     body = response.json()
     assert body["geometry"]["cab_front_x"] == pytest.approx(4.0)
     assert body["geometry"]["eye_z"] == pytest.approx(2.2)
-    assert set(body["camera_positions"]) == {"MIRROR_R", "MIRROR_L", "FRONT_CAM"}
+    assert set(body["camera_positions"]) == {"MIRROR_R", "MIRROR_L", "FRONT_CAM", "REAR_CAM"}
     assert body["warnings"] == []
 
 
@@ -88,7 +88,7 @@ def test_profile_lifecycle(client):
     assert scaffold.status_code == 200
     profile = scaffold.json()
     assert profile["meta"]["vehicle_type"] == "articulated"
-    assert len(profile["cameras"]) == 3
+    assert len(profile["cameras"]) == 4
 
     saved = client.put("/api/profiles/demo-truck", json=profile)
     assert saved.status_code == 200, saved.text
@@ -115,7 +115,7 @@ def test_profile_lifecycle(client):
 
     report = client.get("/api/profiles/demo-truck/report").json()
     assert report["meta"]["profile_id"] == "demo-truck"
-    assert len(report["cameras"]) == 3
+    assert len(report["cameras"]) == 4
     assert all(c["status"] == "not_calibrated" for c in report["cameras"])
 
 
@@ -162,6 +162,37 @@ def test_rigid_vehicle_has_no_articulation(client):
     assert result["state"]["d_swept_m"] == pytest.approx(0.0, abs=1e-9)
 
 
+def test_rigid_vehicle_is_drawn_as_single_block(client):
+    """Xe than lien phai ve MOT khoi chu nhat, khong chia cabin/khung gam/thung."""
+    profile = client.post(
+        "/api/profiles/scaffold", json={"profile_id": "bus-single", "template_id": "bus_47"}
+    ).json()
+    result = client.post(
+        "/api/zones/preview",
+        json={"profile": profile, "speed_kmh": 10, "control_value_deg": 0},
+    ).json()
+    assert result["vehicle"]["kind"] == "rigid"
+    assert "body" in result["vehicle"]
+    assert "cab" not in result["vehicle"]
+    assert "trailer" not in result["vehicle"]
+    assert len(result["vehicle"]["body"]) == 4
+
+
+def test_articulated_vehicle_keeps_three_parts(client):
+    """Xe dau keo + ro-mooc phai giu 3 khoi rieng (cab, chassis, trailer)."""
+    profile = client.post(
+        "/api/profiles/scaffold", json={"profile_id": "art-parts", "template_id": "container_40ft"}
+    ).json()
+    result = client.post(
+        "/api/zones/preview",
+        json={"profile": profile, "speed_kmh": 10, "control_value_deg": 0},
+    ).json()
+    assert result["vehicle"]["kind"] == "articulated"
+    assert "cab" in result["vehicle"]
+    assert "chassis" in result["vehicle"]
+    assert "trailer" in result["vehicle"]
+
+
 def test_point_test_flags_dangerous_point(client):
     """Diem ngay truoc mui xe phai bi coi la nguy hiem; diem o xa thi khong.
 
@@ -197,7 +228,7 @@ def test_camera_snapshot_and_calibration_flow(client):
 
     status = client.get("/api/cameras/cam-truck/status").json()
     assert status["backend"] == "mock"
-    assert len(status["cameras"]) == 3
+    assert len(status["cameras"]) == 4
     assert all(c["online"] for c in status["cameras"])
 
     snapshot = client.get("/api/cameras/cam-truck/MIRROR_R/snapshot")
@@ -310,6 +341,66 @@ def test_commissioned_profile_is_locked(client):
 
     forced = client.put("/api/profiles/lock-truck", json=profile, params={"force": True})
     assert forced.status_code == 200
+
+
+def test_upload_camera_image_overrides_mock(client):
+    """Anh tai len phai duoc dung thay cho anh mo phong, va dong bo kich thuoc."""
+    from io import BytesIO
+
+    from PIL import Image
+
+    profile = client.post(
+        "/api/profiles/scaffold", json={"profile_id": "img-truck", "template_id": "container_40ft"}
+    ).json()
+    client.put("/api/profiles/img-truck", json=profile)
+
+    buffer = BytesIO()
+    Image.new("RGB", (400, 300), (10, 20, 30)).save(buffer, format="JPEG")
+    buffer.seek(0)
+
+    uploaded = client.post(
+        "/api/cameras/img-truck/MIRROR_R/image",
+        files={"file": ("test.jpg", buffer, "image/jpeg")},
+    )
+    assert uploaded.status_code == 200, uploaded.text
+    assert uploaded.json()["image_size"] == [400, 300]
+
+    status = client.get("/api/cameras/img-truck/MIRROR_R/image-status").json()
+    assert status["has_uploaded_image"] is True
+    assert status["image_size"] == [400, 300]
+
+    # Kich thuoc camera trong ho so phai duoc dong bo theo anh vua tai.
+    reloaded = client.get("/api/profiles/img-truck").json()
+    assert reloaded["cameras"]["MIRROR_R"]["width"] == 400
+    assert reloaded["cameras"]["MIRROR_R"]["height"] == 300
+
+    snapshot = client.get("/api/cameras/img-truck/MIRROR_R/snapshot")
+    assert snapshot.status_code == 200
+    assert snapshot.content[:2] == b"\xff\xd8"
+
+    # Co anh tai len -> khong con luong truc tiep (chi la anh tinh).
+    stream = client.get("/api/cameras/img-truck/MIRROR_R/stream")
+    assert stream.status_code == 409
+
+    deleted = client.delete("/api/cameras/img-truck/MIRROR_R/image")
+    assert deleted.status_code == 200
+    status_after = client.get("/api/cameras/img-truck/MIRROR_R/image-status").json()
+    assert status_after["has_uploaded_image"] is False
+
+
+def test_upload_rejects_non_image_file(client):
+    profile = client.post(
+        "/api/profiles/scaffold", json={"profile_id": "bad-img-truck", "template_id": "container_40ft"}
+    ).json()
+    client.put("/api/profiles/bad-img-truck", json=profile)
+
+    from io import BytesIO
+
+    response = client.post(
+        "/api/cameras/bad-img-truck/MIRROR_R/image",
+        files={"file": ("not_image.txt", BytesIO(b"hello world"), "text/plain")},
+    )
+    assert response.status_code == 400
 
 
 def test_diagnostics_flags_missing_pin(client):

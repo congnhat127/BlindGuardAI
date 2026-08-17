@@ -173,6 +173,28 @@ export const api = {
     `${BASE}/cameras/${profileId}/${cameraId}/snapshot?t=${bust}`,
   streamUrl: (profileId: string, cameraId: CameraId) =>
     `${BASE}/cameras/${profileId}/${cameraId}/stream`,
+  imageStatus: (profileId: string, cameraId: CameraId) =>
+    request<{ camera_id: CameraId; has_uploaded_image: boolean; image_size: [number, number] | null }>(
+      `/cameras/${profileId}/${cameraId}/image-status`,
+    ),
+  uploadCameraImage: async (profileId: string, cameraId: CameraId, file: File) => {
+    const form = new FormData()
+    form.append('file', file)
+    const headers = new Headers()
+    if (setupPin) headers.set('X-Setup-Pin', setupPin)
+    const response = await fetch(`${BASE}/cameras/${profileId}/${cameraId}/image`, {
+      method: 'POST',
+      body: form,
+      headers,
+    })
+    if (!response.ok) {
+      const body = await response.json().catch(() => null)
+      throw new ApiError(body?.detail ?? 'Tải ảnh thất bại.', response.status, body)
+    }
+    return (await response.json()) as { uploaded: boolean; image_size: [number, number] }
+  },
+  deleteCameraImage: (profileId: string, cameraId: CameraId) =>
+    request<{ deleted: boolean }>(`/cameras/${profileId}/${cameraId}/image`, { method: 'DELETE' }),
   referenceCones: (profileId: string, cameraId: CameraId) =>
     request<{ camera_id: CameraId; cones: ReferenceCone[]; note: string }>(
       `/cameras/${profileId}/${cameraId}/reference-cones`,

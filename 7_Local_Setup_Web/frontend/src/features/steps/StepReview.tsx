@@ -71,9 +71,9 @@ export function StepReview() {
       detail: warnings.length ? warnings.map((w) => w.message).join(' ') : 'Nằm trong dải hợp lý',
     },
     {
-      ok: calibrated.length === 3,
-      label: 'Cả 3 camera đã căn chỉnh',
-      detail: `${calibrated.length}/3 camera đã chốt kết quả`,
+      ok: calibrated.length === 4,
+      label: 'Cả 4 camera đã căn chỉnh',
+      detail: `${calibrated.length}/4 camera đã chốt kết quả`,
     },
     {
       ok: (failing?.length ?? 1) === 0,

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
@@ -52,9 +52,18 @@ def camera_status(profile_id: str, store: ProfileStore = Depends(get_store)) -> 
 def snapshot(
     profile_id: str, camera_id: str, store: ProfileStore = Depends(get_store)
 ) -> Response:
-    """Mot khung hinh JPEG. Che do mock: ve tu mo hinh camera."""
+    """Một khung hình JPEG.
+
+    Nếu kỹ thuật viên đã tải ảnh chụp thật của camera này lên (endpoint /image),
+    trả ảnh đó. Nếu chưa, chế độ mock trả ảnh mô phỏng dựng từ mô hình camera.
+    """
     _check_camera(camera_id)
     profile = _profile(store, profile_id)
+    uploaded = store.load_camera_image(profile_id, camera_id)
+    if uploaded is not None:
+        return Response(
+            content=uploaded, media_type="image/jpeg", headers={"Cache-Control": "no-store"}
+        )
     try:
         payload = get_camera_source().snapshot(profile, camera_id)
     except Exception as exc:
@@ -62,11 +71,106 @@ def snapshot(
     return Response(content=payload, media_type="image/jpeg", headers={"Cache-Control": "no-store"})
 
 
-@router.get("/{profile_id}/{camera_id}/stream")
-def stream(profile_id: str, camera_id: str, store: ProfileStore = Depends(get_store)):
-    """Luong MJPEG - dat truc tiep vao thuoc tinh src cua the img."""
+@router.post("/{profile_id}/{camera_id}/image", dependencies=[Depends(require_pin)])
+async def upload_camera_image(
+    profile_id: str,
+    camera_id: str,
+    file: UploadFile,
+    store: ProfileStore = Depends(get_store),
+) -> dict:
+    """Tải ảnh chụp thật từ camera lên, dùng thay cho ảnh mô phỏng để căn chỉnh.
+
+    Kỹ thuật viên chụp ảnh camera bằng điện thoại (hoặc lấy khung hình từ camera
+    thật nếu đã lắp) rồi tải lên đây. Ảnh này sẽ hiện ở màn hình căn chỉnh, thay
+    cho hình vẽ giả lập. Kích thước camera trong hồ sơ được cập nhật theo đúng
+    kích thước ảnh, để lưới mét chiếu lên không bị lệch tỉ lệ.
+    """
     _check_camera(camera_id)
     profile = _profile(store, profile_id)
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="File ảnh trống.")
+
+    from io import BytesIO
+
+    from PIL import Image, UnidentifiedImageError
+
+    try:
+        with Image.open(BytesIO(content)) as img:
+            width, height = img.size
+            if img.mode != "RGB":
+                img = img.convert("RGB")
+            buffer = BytesIO()
+            img.save(buffer, format="JPEG", quality=90)
+            content = buffer.getvalue()
+    except UnidentifiedImageError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="File không phải ảnh hợp lệ."
+        ) from exc
+
+    store.save_camera_image(profile_id, camera_id, content)
+
+    camera = profile.cameras[camera_id]
+    if camera.width != width or camera.height != height:
+        camera.width = width
+        camera.height = height
+        camera.intrinsics.cx = width / 2.0
+        camera.intrinsics.cy = height / 2.0
+        store.save(profile, force=True)
+
+    return {
+        "uploaded": True,
+        "camera_id": camera_id,
+        "size_bytes": len(content),
+        "image_size": [width, height],
+    }
+
+
+@router.delete("/{profile_id}/{camera_id}/image", dependencies=[Depends(require_pin)])
+def delete_camera_image(
+    profile_id: str, camera_id: str, store: ProfileStore = Depends(get_store)
+) -> dict:
+    """Xoá ảnh đã tải lên, quay về dùng ảnh mô phỏng."""
+    _check_camera(camera_id)
+    store.delete_camera_image(profile_id, camera_id)
+    return {"deleted": True, "camera_id": camera_id}
+
+
+@router.get("/{profile_id}/{camera_id}/image-status")
+def image_status(profile_id: str, camera_id: str, store: ProfileStore = Depends(get_store)) -> dict:
+    _check_camera(camera_id)
+    has_image = store.has_camera_image(profile_id, camera_id)
+    size: list[int] | None = None
+    if has_image:
+        from io import BytesIO
+
+        from PIL import Image
+
+        content = store.load_camera_image(profile_id, camera_id)
+        if content:
+            with Image.open(BytesIO(content)) as img:
+                size = list(img.size)
+    return {
+        "camera_id": camera_id,
+        "has_uploaded_image": has_image,
+        "image_size": size,
+    }
+
+
+@router.get("/{profile_id}/{camera_id}/stream")
+def stream(profile_id: str, camera_id: str, store: ProfileStore = Depends(get_store)):
+    """Luong MJPEG - dat truc tiep vao thuoc tinh src cua the img.
+
+    Neu da tai anh thuc te len, khong co "luong truc tiep" thuc su (chi la 1
+    anh tinh) nen tra ve 409 - frontend se tu chuyen sang hien anh tinh.
+    """
+    _check_camera(camera_id)
+    profile = _profile(store, profile_id)
+    if store.load_camera_image(profile_id, camera_id) is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Đang dùng ảnh đã tải lên (ảnh tĩnh), không có luồng trực tiếp.",
+        )
     return StreamingResponse(
         mjpeg_stream(profile, camera_id),
         media_type=f"multipart/x-mixed-replace; boundary={BOUNDARY}",

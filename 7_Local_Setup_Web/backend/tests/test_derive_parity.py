@@ -77,9 +77,14 @@ def test_camera_positions_match_engine(engine_config):
     positions = geometry.camera_positions()
     # Doc ban chup goc, khong doc thuoc tinh module: _bind ghi de bien module nen
     # mot test chay truoc co the da doi CAMERAS_EXTRINSICS.
+    #
+    # REAR_CAM la camera thu 4 rieng cua web (de dat du 4 camera nhu de tai),
+    # engine goc chi co 3 camera nen khong co gia tri de doi chieu - bo qua no.
     pristine = engine.pristine_config()
     assert set(positions) == set(CAMERA_IDS)
     for camera_id, position in positions.items():
+        if camera_id not in pristine["CAMERAS_EXTRINSICS"]:
+            continue
         expected = pristine["CAMERAS_EXTRINSICS"][camera_id]["position"]
         for got, want in zip(position, expected):
             assert math.isclose(got, want, abs_tol=1e-9), f"{camera_id}: {position} != {expected}"
@@ -89,6 +94,8 @@ def test_monitored_zones_match_engine():
     pristine = engine.pristine_config()
     profile = VehicleProfile(meta=ProfileMeta(profile_id="parity-truck"))
     for camera_id in CAMERA_IDS:
+        if camera_id not in pristine["CAMERAS_EXTRINSICS"]:
+            continue  # REAR_CAM: camera thu 4 rieng cua web, engine goc chua co
         assert (
             profile.cameras[camera_id].monitored_blind_zones
             == pristine["CAMERAS_EXTRINSICS"][camera_id]["monitored_blind_zones"]

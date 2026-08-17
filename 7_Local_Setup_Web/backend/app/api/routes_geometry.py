@@ -10,7 +10,7 @@ from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field
 
 from ..domain import engine
-from ..domain.derive import DERIVATION_BASIS, derive_geometry, sanity_warnings
+from ..domain.derive import DERIVATION_BASIS, MEASUREMENT_GUIDE, derive_geometry, sanity_warnings
 from ..domain.schemas import VehicleBase, VehicleProfile
 
 router = APIRouter(tags=["geometry"])
@@ -49,6 +49,7 @@ def derive(payload: DeriveRequest) -> dict:
             geometry,
         ),
         "basis": DERIVATION_BASIS,
+        "measurement_guide": MEASUREMENT_GUIDE,
     }
 
 

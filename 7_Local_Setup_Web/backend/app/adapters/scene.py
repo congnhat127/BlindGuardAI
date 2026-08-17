@@ -36,6 +36,8 @@ CALIBRATION_CONES: dict[str, list[tuple[float, float]]] = {
     "MIRROR_L": [(1.0, 2.5), (1.0, 5.0), (-4.0, 5.0), (-4.0, 2.5)],
     # Camera mui xe: chop non phia truoc cabin.
     "FRONT_CAM": [(6.0, -2.0), (6.0, 2.0), (11.0, 2.0), (11.0, -2.0)],
+    # Camera duoi xe: chop non phia sau ro-mooc.
+    "REAR_CAM": [(-3.0, -2.0), (-3.0, 2.0), (-8.0, 2.0), (-8.0, -2.0)],
 }
 
 # Do lech "su that vat ly" so voi goc mac dinh - co dinh de ket qua tai lap duoc.
@@ -49,6 +51,7 @@ TRUTH_OFFSET: dict[str, tuple[float, float, float, float]] = {
     "MIRROR_R": (2.5, -3.0, 0.0, -0.08),
     "MIRROR_L": (-2.0, 2.5, 0.0, 0.06),
     "FRONT_CAM": (1.5, 1.8, 0.0, -0.05),
+    "REAR_CAM": (2.0, -2.5, 0.0, -0.06),
 }
 
 SKY = (206, 214, 222)
@@ -190,7 +193,7 @@ def _draw_bodywork(
     elif camera_id == "MIRROR_L":
         edge_y = geometry.trail_half_w
     else:
-        return
+        return  # REAR_CAM va FRONT_CAM khong ve than xe ben hong
 
     bottom = [(geometry.trail_front_x, edge_y), (geometry.trail_rear_x, edge_y)]
     top = [(geometry.trail_front_x, edge_y), (geometry.trail_rear_x, edge_y)]
@@ -270,6 +273,9 @@ def _draw_actor(
     elif camera_id == "MIRROR_L":
         x = -8.0 + phase * 14.0
         y = 3.2
+    elif camera_id == "REAR_CAM":
+        x = -10.0 + phase * 6.0
+        y = -1.2 + math.sin(phase * math.tau) * 0.8
     else:
         x = 14.0 - phase * 8.0
         y = -1.6 + math.sin(phase * math.tau) * 0.8
@@ -307,7 +313,7 @@ def _draw_watermark(
     bar_height = max(28, height // 22)
     draw.rectangle([0, 0, width, bar_height], fill=(22, 25, 30))
     draw.text((12, bar_height // 3), f"{camera_id}  |  {camera.label}", fill=(240, 242, 245))
-    text = "KHUNG HINH GIA LAP - CHUA CO CAMERA THAT"
+    text = "ANH MO PHONG - CHUA CO CAMERA THAT"
     draw.text((width - 340, bar_height // 3), text, fill=(232, 178, 36))
 
 

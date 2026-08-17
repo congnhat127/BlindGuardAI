@@ -24,6 +24,7 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'primary' | 'default' | 'ghost' | 'danger'
   size?: 'sm' | 'md'
   loading?: boolean
+  as?: 'button' | 'span'
 }
 
 export function Button({
@@ -33,6 +34,7 @@ export function Button({
   className = '',
   children,
   disabled,
+  as = 'button',
   ...rest
 }: ButtonProps) {
   const base =
@@ -46,12 +48,19 @@ export function Button({
     ghost: 'bg-transparent border-transparent text-ink-700 hover:bg-ink-100',
     danger: 'bg-white border-bad-600/40 text-bad-600 hover:bg-bad-100',
   }
+  const classes = `${base} ${sizes[size]} ${variants[variant]} ${disabled || loading ? 'opacity-45 cursor-not-allowed' : ''} ${className}`
+
+  if (as === 'span') {
+    return (
+      <span className={classes} {...(rest as React.HTMLAttributes<HTMLSpanElement>)}>
+        {loading && <Spinner />}
+        {children}
+      </span>
+    )
+  }
+
   return (
-    <button
-      className={`${base} ${sizes[size]} ${variants[variant]} ${className}`}
-      disabled={disabled || loading}
-      {...rest}
-    >
+    <button className={classes} disabled={disabled || loading} {...rest}>
       {loading && <Spinner />}
       {children}
     </button>

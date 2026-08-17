@@ -166,6 +166,41 @@ def _poly(points: Any) -> list[list[float]]:
     return [[round(float(x), 4), round(float(y), 4)] for x, y in points]
 
 
+def _vehicle_shape(profile: VehicleProfile, vehicle: dict, is_rigid: bool) -> dict:
+    """Hinh dang than xe de frontend ve.
+
+    Xe dau keo + ro-mooc (articulated): giu nguyen 3 khoi rieng (cab, chassis,
+    trailer) nhu engine tra ve, vi than xe THAT co khop gap va tach roi.
+
+    Xe than lien (rigid - bus, thung lien, xe bon): dung MOT khoi chu nhat duy
+    nhat tu mui xe den duoi xe, KHONG chia cabin/khung gam/thung nhu xe khop noi.
+    Day la yeu cau hien thi dung thuc te: xe than lien khong co khop noi nen
+    khong duoc ve giong xe dau keo.
+    """
+    if not is_rigid:
+        return {
+            "kind": "articulated",
+            "cab": _poly(vehicle["cab"]),
+            "chassis": _poly(vehicle["chassis"]),
+            "trailer": _poly(vehicle["trailer"]),
+            "pivot": [round(vehicle["pivot"][0], 4), round(vehicle["pivot"][1], 4)],
+        }
+
+    geometry = profile.geometry()
+    half_width = max(geometry.cab_half_w, geometry.trail_half_w)
+    body = [
+        [round(geometry.cab_front_x, 4), round(half_width, 4)],
+        [round(geometry.cab_front_x, 4), round(-half_width, 4)],
+        [round(geometry.trail_rear_x, 4), round(-half_width, 4)],
+        [round(geometry.trail_rear_x, 4), round(half_width, 4)],
+    ]
+    return {
+        "kind": "rigid",
+        "body": body,
+        "pivot": [round(vehicle["pivot"][0], 4), round(vehicle["pivot"][1], 4)],
+    }
+
+
 # ---------------------------------------------------------------------------
 # Tinh vung mu
 # ---------------------------------------------------------------------------
@@ -229,6 +264,8 @@ def compute_zones(
         if abs(calculator.yaw_rate) > 1e-4 and speed_mps > 1e-3:
             turn_radius = abs(speed_mps / calculator.yaw_rate)
 
+        vehicle_shape = _vehicle_shape(profile, vehicle, is_rigid)
+
         return {
             "input": {
                 "speed_kmh": speed_kmh,
@@ -250,12 +287,7 @@ def compute_zones(
                 "d_braking_m": round(stopping["d_braking"], 3),
                 "d_total_m": round(stopping["d_total"], 3),
             },
-            "vehicle": {
-                "cab": _poly(vehicle["cab"]),
-                "chassis": _poly(vehicle["chassis"]),
-                "trailer": _poly(vehicle["trailer"]),
-                "pivot": [round(vehicle["pivot"][0], 4), round(vehicle["pivot"][1], 4)],
-            },
+            "vehicle": vehicle_shape,
             "reference_points": {
                 "eye": [round(config.EYE_X, 4), round(config.EYE_Y, 4)],
                 "mirror_right": [round(config.MIRROR_R_X, 4), round(config.MIRROR_R_Y, 4)],
@@ -264,14 +296,20 @@ def compute_zones(
                 "a_pillar_left": [round(config.A_PILLAR_L_X, 4), round(config.A_PILLAR_L_Y, 4)],
             },
             "zones": {
-                "a_pillar_right": _poly(occlusion["a_pillar_right"]),
-                "a_pillar_left": _poly(occlusion["a_pillar_left"]),
-                "b_pillar_right": _poly(occlusion["b_pillar_right"]),
-                "b_pillar_left": _poly(occlusion["b_pillar_left"]),
+                # 4 vung CHINH, dung theo de tai (phai / trai / truoc / sau).
+                # right_side_occlusion va left_side_occlusion cua engine da la
+                # vung gop tu guong -> khong can hop nhat them, chi doi ten hien thi
+                # ("essential") de frontend biet day la 4 vung can hien mac dinh.
                 "right_side_occlusion": _poly(occlusion["right_side_occlusion"]),
                 "left_side_occlusion": _poly(occlusion["left_side_occlusion"]),
                 "front_bonnet": _poly(occlusion["front_bonnet"]),
                 "swept_path": _poly(swept["swept_path"]),
+                # Vung CHI TIET - thanh phan nho hon nam trong vung ben phai/trai,
+                # chi hien khi bat "Xem chi tiet" tren giao dien.
+                "a_pillar_right": _poly(occlusion["a_pillar_right"]),
+                "a_pillar_left": _poly(occlusion["a_pillar_left"]),
+                "b_pillar_right": _poly(occlusion["b_pillar_right"]),
+                "b_pillar_left": _poly(occlusion["b_pillar_left"]),
                 "stopping_hazard": _poly(stopping["front_hazard_polygon"]),
             },
         }

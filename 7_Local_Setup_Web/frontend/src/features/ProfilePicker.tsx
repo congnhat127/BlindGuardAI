@@ -117,7 +117,7 @@ export function ProfilePicker() {
                         : [
                             item.vehicle_type === 'rigid' ? 'Xe thân liền' : 'Đầu kéo + rơ-moóc',
                             item.total_length ? `dài ${item.total_length} m` : null,
-                            `${item.cameras_calibrated ?? 0}/3 camera đã căn chỉnh`,
+                            `${item.cameras_calibrated ?? 0}/4 camera đã căn chỉnh`,
                           ]
                             .filter(Boolean)
                             .join(' · ')}

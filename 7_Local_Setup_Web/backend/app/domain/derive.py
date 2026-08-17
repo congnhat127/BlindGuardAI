@@ -25,84 +25,146 @@ from typing import Any
 # ---------------------------------------------------------------------------
 DERIVATION_BASIS: dict[str, dict[str, str]] = {
     "CAB_FRONT_X": {
-        "label": "Mui xe (mep can truoc)",
+        "label": "Mũi xe (mép cản trước)",
         "formula": "L_f + 0.40",
         "standard": "QCVN 09:2015/BGTVT",
-        "note": "Do nho can truoc co dinh 40 cm so voi truc banh truoc.",
+        "how_to_measure": "Đo từ tâm trục bánh trước ra tới đầu cản trước. Đây là số tự suy ra, không cần đo trực tiếp.",
+        "note": "Độ nhô cản trước cố định 40 cm so với trục bánh trước.",
     },
     "CAB_REAR_X": {
-        "label": "Vach sau cabin",
+        "label": "Vách sau cabin",
         "formula": "L_f x 0.61",
-        "standard": "Khao sat cabin dau bang (COE)",
-        "note": "Cabin Cab-Over-Engine dat sau truc truoc.",
+        "standard": "Khảo sát cabin đầu bằng (COE)",
+        "how_to_measure": "Tự suy ra từ chiều dài cơ sở, không cần đo.",
+        "note": "Cabin đầu bằng (Cab-Over-Engine) đặt vách sau ngay trên trục trước.",
     },
     "D_HITCH": {
-        "label": "Chot keo (mam xoay)",
+        "label": "Chốt kéo (mâm xoay)",
         "formula": "L_f x 0.08",
         "standard": "SAE J694 / ISO 1726",
-        "note": "Mam xoay lech 7.5-8.5% truoc truc sau de phan bo 33% tai cau truoc.",
+        "how_to_measure": "Tự suy ra. Nếu muốn kiểm tra: đo từ tâm trục sau đầu kéo tới tâm mâm xoay (thường nhô ra 7.5–8.5% chiều dài cơ sở).",
+        "note": "Mâm xoay lệch 7.5–8.5% trước trục sau để phân bổ 33% tải lên cầu trước.",
     },
     "TRAIL_OVERHANG": {
-        "label": "Nho ro-mooc truoc chot keo",
+        "label": "Nhô rơ-moóc trước chốt kéo",
         "formula": "L_f x 0.25",
-        "standard": "Ban kinh quay mam xoay keo container",
+        "standard": "Bán kính quay mâm xoay kéo container",
+        "how_to_measure": "Tự suy ra, không cần đo.",
         "note": "",
     },
     "CHASSIS_HALF_W": {
-        "label": "Nua rong khung gam",
+        "label": "Nửa rộng khung gầm",
         "formula": "W_cab x 0.18",
-        "standard": "Khung gam hep bang 36% be rong cabin",
+        "standard": "Khung gầm hẹp bằng 36% bề rộng cabin",
+        "how_to_measure": "Tự suy ra, không cần đo.",
         "note": "",
     },
     "EYE_X": {
-        "label": "Mat tai xe - doc",
+        "label": "Mắt tài xế — dọc xe",
         "formula": "L_f x 0.78",
         "standard": "SAE J941 (Eyellipse)",
-        "note": "Vung oval mat tai xe chuan xe tai hang nang.",
+        "how_to_measure": "Tự suy ra từ chiều dài cơ sở và chiều cao tài xế đã nhập.",
+        "note": "Vùng oval mắt tài xế chuẩn xe tải hạng nặng.",
     },
     "EYE_Y": {
-        "label": "Mat tai xe - ngang",
+        "label": "Mắt tài xế — ngang xe",
         "formula": "W_cab x 0.20",
         "standard": "SAE J941 (Eyellipse)",
-        "note": "Lech ve phia ghe lai (ben trai).",
+        "how_to_measure": "Tự suy ra, không cần đo.",
+        "note": "Lệch về phía ghế lái (bên trái).",
     },
     "EYE_Z": {
-        "label": "Do cao tam mat",
-        "formula": "2.20 + (H_driver - 1.70) x 0.5",
-        "standard": "San cabin 1.4 m + tam mat ngoi 0.8 m",
-        "note": "Hieu chinh 50% theo chenh lech chieu cao tai xe.",
+        "label": "Độ cao tầm mắt",
+        "formula": "2.20 + (chiều cao tài xế - 1.70) x 0.5",
+        "standard": "Sàn cabin 1.4 m + tầm mắt ngồi 0.8 m",
+        "how_to_measure": "Đo chiều cao tài xế thường lái xe (đứng thẳng, từ chân đến đỉnh đầu). Hệ thống tự quy đổi ra độ cao tầm mắt khi ngồi lái.",
+        "note": "Hiệu chỉnh 50% theo chênh lệch chiều cao tài xế so với 1.70 m.",
     },
     "MIRROR_X": {
-        "label": "Guong chieu hau - doc",
+        "label": "Gương chiếu hậu — dọc xe",
         "formula": "L_f x 0.97",
         "standard": "QCVN 09:2015/BGTVT",
-        "note": "Guong gan sat chan kinh truoc.",
+        "how_to_measure": "Tự suy ra, không cần đo. Gương thường gắn sát chân kính chắn gió trước.",
+        "note": "Gương gắn sát chân kính trước.",
     },
     "MIRROR_Y": {
-        "label": "Guong chieu hau - ngang",
-        "formula": "+/- (W_cab/2 + 0.10)",
+        "label": "Gương chiếu hậu — ngang xe",
+        "formula": "±(W_cab/2 + 0.10)",
         "standard": "QCVN 09:2015/BGTVT",
-        "note": "Guong vuon ra ngoai hong xe 10 cm.",
+        "how_to_measure": "Tự suy ra, không cần đo.",
+        "note": "Gương vươn ra ngoài hông xe 10 cm.",
     },
     "A_PILLAR": {
-        "label": "Cot A",
-        "formula": "X = X_mirror - 0.10 ; Y = +/- (W_cab/2 - 0.05)",
-        "standard": "Khung gia cuong cua so truoc cabin",
+        "label": "Cột A",
+        "formula": "X = X_gương - 0.10 ; Y = ±(W_cab/2 - 0.05)",
+        "standard": "Khung gia cường cửa sổ trước cabin",
+        "how_to_measure": "Tự suy ra, không cần đo.",
         "note": "",
     },
     "B_PILLAR": {
-        "label": "Cot B",
-        "formula": "X = X_cab_rear ; Y = +/- W_cab/2",
-        "standard": "Vach kim loai sau cua so, chan tam nhin ngoai vai",
+        "label": "Cột B",
+        "formula": "X = vách sau cabin ; Y = ±W_cab/2",
+        "standard": "Vách kim loại sau cửa sổ, chắn tầm nhìn ngoái vai",
+        "how_to_measure": "Tự suy ra, không cần đo.",
         "note": "",
     },
 }
 
+# Danh sách "cách đo" cho đúng 5 số phải đo tay - hien thi truc tiep trong
+# man hinh nhap kich thuoc (yeu cau: liet ke thong so + cach do).
+MEASUREMENT_GUIDE: list[dict[str, str]] = [
+    {
+        "key": "wheelbase_tractor",
+        "label": "Chiều dài cơ sở đầu kéo (L_f)",
+        "how_to_measure": (
+            "Dùng thước dây đo khoảng cách giữa tâm trục bánh trước và tâm trục "
+            "bánh sau (bánh đơn hoặc giữa 2 cụm trục sau nếu là trục đôi). Đo "
+            "theo phương dọc thân xe, không đo theo đường chéo."
+        ),
+        "typical_range": "2.5 – 7.0 m",
+    },
+    {
+        "key": "cab_width",
+        "label": "Chiều rộng cabin (W_cab)",
+        "how_to_measure": (
+            "Đo bề rộng ngoài cùng của cabin (không tính gương chiếu hậu), tại "
+            "điểm rộng nhất — thường ngay dưới cửa kính."
+        ),
+        "typical_range": "1.8 – 2.8 m",
+    },
+    {
+        "key": "l_trail",
+        "label": "Chiều dài rơ-moóc (L_trail)",
+        "how_to_measure": (
+            "Đo từ tâm chốt kéo (mâm xoay dưới gầm đầu kéo) đến tâm cụm trục "
+            "bánh sau của rơ-moóc. Không đo tổng chiều dài rơ-moóc."
+        ),
+        "typical_range": "3 – 16 m",
+    },
+    {
+        "key": "w_trail",
+        "label": "Chiều rộng rơ-moóc (W_trail)",
+        "how_to_measure": "Đo bề rộng ngoài cùng của thùng/sơ-mi rơ-moóc.",
+        "typical_range": "1.8 – 3.0 m",
+    },
+    {
+        "key": "driver_height",
+        "label": "Chiều cao tài xế thường lái xe",
+        "how_to_measure": (
+            "Đo chiều cao đứng thẳng (chân đến đỉnh đầu) của tài xế chính. Nếu "
+            "có nhiều tài xế, dùng người cao trung bình trong nhóm."
+        ),
+        "typical_range": "1.4 – 2.1 m",
+    },
+]
+
 # Ten camera va vung mu ma moi camera chiu trach nhiem giam sat.
-# Giu dung thu tu / dung ten khoa nhu CAMERAS_EXTRINSICS trong config.py.
+# 4 camera: guong phai, guong trai, mui xe, duoi xe (dung theo de tai 4 camera).
 CAMERA_LAYOUT: dict[str, dict[str, Any]] = {
     "MIRROR_R": {
-        "label": "Guong phai (phu xe)",
+        "label": "Camera gương phải",
+        "short_label": "Bên phải",
+        "direction": "right",
         "default_pitch_deg": -15.0,
         "default_yaw_deg": -165.0,
         "default_roll_deg": 0.0,
@@ -114,7 +176,9 @@ CAMERA_LAYOUT: dict[str, dict[str, Any]] = {
         ],
     },
     "MIRROR_L": {
-        "label": "Guong trai (tai xe)",
+        "label": "Camera gương trái",
+        "short_label": "Bên trái",
+        "direction": "left",
         "default_pitch_deg": -15.0,
         "default_yaw_deg": 165.0,
         "default_roll_deg": 0.0,
@@ -126,11 +190,22 @@ CAMERA_LAYOUT: dict[str, dict[str, Any]] = {
         ],
     },
     "FRONT_CAM": {
-        "label": "Camera mui xe",
+        "label": "Camera mũi xe",
+        "short_label": "Phía trước",
+        "direction": "front",
         "default_pitch_deg": -10.0,
         "default_yaw_deg": 0.0,
         "default_roll_deg": 0.0,
         "monitored_blind_zones": ["front_bonnet", "stopping_hazard"],
+    },
+    "REAR_CAM": {
+        "label": "Camera đuôi xe",
+        "short_label": "Phía sau",
+        "direction": "rear",
+        "default_pitch_deg": -12.0,
+        "default_yaw_deg": 180.0,
+        "default_roll_deg": 0.0,
+        "monitored_blind_zones": ["swept_path"],
     },
 }
 
@@ -179,11 +254,12 @@ class DerivedGeometry:
         return {k: round(v, 4) for k, v in self.__dict__.items()}
 
     def camera_positions(self) -> dict[str, list[float]]:
-        """Vi tri lap camera suy ra tu guong va mui xe (khop CAMERAS_EXTRINSICS)."""
+        """Vi tri lap camera suy ra tu guong, mui xe, duoi xe."""
         return {
             "MIRROR_R": [self.mirror_r_x, self.mirror_r_y, self.eye_z],
             "MIRROR_L": [self.mirror_l_x, self.mirror_l_y, self.eye_z],
             "FRONT_CAM": [self.cab_front_x, 0.0, self.eye_z + 0.3],
+            "REAR_CAM": [self.trail_rear_x, 0.0, self.eye_z],
         }
 
 

@@ -12,7 +12,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { api } from '../../lib/api'
 import type { DeriveResponse } from '../../lib/types'
-import { Callout, DataRow, Field, NumberInput, Panel } from '../../components/ui'
+import { Badge, Callout, Field, NumberInput, Panel } from '../../components/ui'
 import { TopDownView, type DimensionKey } from '../../components/TopDownView'
 import { useApp } from '../../store/app'
 
@@ -20,50 +20,14 @@ const FIELDS: {
   key: keyof DeriveResponse['base']
   dim: DimensionKey
   label: string
-  hint: string
   min: number
   max: number
 }[] = [
-  {
-    key: 'wheelbase_tractor',
-    dim: 'wheelbase_tractor',
-    label: 'Chiều dài cơ sở đầu kéo (L_f)',
-    hint: 'Tâm trục bánh trước → tâm trục bánh sau',
-    min: 2.5,
-    max: 7,
-  },
-  {
-    key: 'cab_width',
-    dim: 'cab_width',
-    label: 'Chiều rộng cabin (W_cab)',
-    hint: 'Rộng tổng thể, không tính gương',
-    min: 1.8,
-    max: 2.8,
-  },
-  {
-    key: 'l_trail',
-    dim: 'l_trail',
-    label: 'Chiều dài rơ-moóc (L_trail)',
-    hint: 'Chốt kéo → tâm cụm trục bánh sau moóc',
-    min: 3,
-    max: 16,
-  },
-  {
-    key: 'w_trail',
-    dim: 'w_trail',
-    label: 'Chiều rộng rơ-moóc (W_trail)',
-    hint: 'Rộng tổng thể thùng',
-    min: 1.8,
-    max: 3,
-  },
-  {
-    key: 'driver_height',
-    dim: 'driver_height',
-    label: 'Chiều cao tài xế',
-    hint: 'Dùng để suy ra độ cao tầm mắt, ảnh hưởng trực tiếp vùng mù mũi xe',
-    min: 1.4,
-    max: 2.1,
-  },
+  { key: 'wheelbase_tractor', dim: 'wheelbase_tractor', label: 'Chiều dài cơ sở đầu kéo', min: 2.5, max: 7 },
+  { key: 'cab_width', dim: 'cab_width', label: 'Chiều rộng cabin', min: 1.8, max: 2.8 },
+  { key: 'l_trail', dim: 'l_trail', label: 'Chiều dài rơ-moóc', min: 3, max: 16 },
+  { key: 'w_trail', dim: 'w_trail', label: 'Chiều rộng rơ-moóc', min: 1.8, max: 3 },
+  { key: 'driver_height', dim: 'driver_height', label: 'Chiều cao tài xế', min: 1.4, max: 2.1 },
 ]
 
 export function StepDimensions() {
@@ -104,35 +68,51 @@ export function StepDimensions() {
     return map
   }, [derived])
 
+  const guideByKey = useMemo(() => {
+    const map: Record<string, DeriveResponse['measurement_guide'][number]> = {}
+    for (const item of derived?.measurement_guide ?? []) map[item.key] = item
+    return map
+  }, [derived])
+
   if (!profile || !base) return null
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-4 xl:grid-cols-[380px_1fr]">
+      <div className="grid gap-4 xl:grid-cols-[420px_1fr]">
         <Panel
-          title="4 thông số từ sổ đăng kiểm"
-          subtitle="Chỉ cần 4 số này, 25 thông số còn lại tự suy ra"
+          title="5 số cần đo trên xe"
+          subtitle="Đo bằng thước dây, chỉ cần 5 số này để hệ thống tự tính phần còn lại"
         >
-          <div className="space-y-3">
-            {FIELDS.map((field) => (
-              <Field
-                key={field.key}
-                label={field.label}
-                hint={field.hint}
-                error={warningsByField[field.key]?.join(' ')}
-              >
-                <NumberInput
-                  value={base[field.key]}
-                  min={field.min}
-                  max={field.max}
-                  step={0.01}
-                  invalid={Boolean(warningsByField[field.key])}
-                  onChange={(value) => patchBase({ [field.key]: value })}
-                  onFocus={() => setFocused(field.dim)}
-                  onBlur={() => setFocused(null)}
-                />
-              </Field>
-            ))}
+          <div className="space-y-4">
+            {FIELDS.map((field) => {
+              const guide = guideByKey[field.key]
+              return (
+                <div key={field.key} className="rounded-[4px] border border-ink-200 p-3">
+                  <div className="mb-1 flex items-center justify-between gap-2">
+                    <span className="text-[13.5px] font-semibold text-ink-900">{field.label}</span>
+                    {guide && <Badge tone="neutral">{guide.typical_range}</Badge>}
+                  </div>
+                  {guide && (
+                    <p className="mb-2 text-[12.5px] leading-relaxed text-ink-600">
+                      <span className="font-medium text-ink-700">Cách đo: </span>
+                      {guide.how_to_measure}
+                    </p>
+                  )}
+                  <Field label="Giá trị đo được" error={warningsByField[field.key]?.join(' ')}>
+                    <NumberInput
+                      value={base[field.key]}
+                      min={field.min}
+                      max={field.max}
+                      step={0.01}
+                      invalid={Boolean(warningsByField[field.key])}
+                      onChange={(value) => patchBase({ [field.key]: value })}
+                      onFocus={() => setFocused(field.dim)}
+                      onBlur={() => setFocused(null)}
+                    />
+                  </Field>
+                </div>
+              )
+            })}
           </div>
 
           {error && (
@@ -193,6 +173,8 @@ export function StepDimensions() {
   )
 }
 
+/** Bang chi tiet 25 thong so tu suy ra - AN mac dinh, chi mo khi bam xem.
+ *  Yeu cau: giao dien khong duoc rop thong tin -> khong hien san bang nay. */
 function DerivedTable({ derived }: { derived: DeriveResponse }) {
   const { geometry, basis } = derived
   const rows: { key: string; label: string; value: string }[] = [
@@ -200,57 +182,29 @@ function DerivedTable({ derived }: { derived: DeriveResponse }) {
     { key: 'CAB_REAR_X', label: 'Vách sau cabin', value: `${geometry.cab_rear_x.toFixed(2)} m` },
     { key: 'D_HITCH', label: 'Chốt kéo', value: `${geometry.d_hitch.toFixed(2)} m` },
     {
-      key: 'TRAIL_OVERHANG',
-      label: 'Nhô rơ-moóc trước chốt kéo',
-      value: `${geometry.trail_overhang.toFixed(2)} m`,
-    },
-    {
-      key: 'CHASSIS_HALF_W',
-      label: 'Nửa rộng khung gầm',
-      value: `${geometry.chassis_half_w.toFixed(2)} m`,
-    },
-    {
       key: 'EYE_X',
-      label: 'Mắt tài xế (dọc)',
-      value: `${geometry.eye_x.toFixed(2)} m`,
+      label: 'Mắt tài xế (dọc / ngang)',
+      value: `${geometry.eye_x.toFixed(2)} / ${geometry.eye_y.toFixed(2)} m`,
     },
-    { key: 'EYE_Y', label: 'Mắt tài xế (ngang)', value: `${geometry.eye_y.toFixed(2)} m` },
     { key: 'EYE_Z', label: 'Độ cao tầm mắt', value: `${geometry.eye_z.toFixed(2)} m` },
     {
       key: 'MIRROR_X',
-      label: 'Gương (dọc)',
-      value: `${geometry.mirror_r_x.toFixed(2)} m`,
-    },
-    {
-      key: 'MIRROR_Y',
-      label: 'Gương (ngang)',
-      value: `±${Math.abs(geometry.mirror_r_y).toFixed(2)} m`,
-    },
-    {
-      key: 'A_PILLAR',
-      label: 'Cột A',
-      value: `${geometry.a_pillar_r_x.toFixed(2)} ; ±${Math.abs(geometry.a_pillar_r_y).toFixed(2)} m`,
-    },
-    {
-      key: 'B_PILLAR',
-      label: 'Cột B',
-      value: `${geometry.b_pillar_r_x.toFixed(2)} ; ±${Math.abs(geometry.b_pillar_r_y).toFixed(2)} m`,
+      label: 'Gương chiếu hậu',
+      value: `${geometry.mirror_r_x.toFixed(2)} / ±${Math.abs(geometry.mirror_r_y).toFixed(2)} m`,
     },
   ]
 
   return (
-    <Panel
-      title="Thông số tự suy ra"
-      subtitle="Mỗi con số đều có căn cứ tiêu chuẩn, không phải hệ số tuỳ ý"
-      dense
-    >
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[680px] text-left text-[13px]">
+    <details className="surface">
+      <summary className="cursor-pointer px-4 py-2.5 text-[13px] font-semibold text-ink-700">
+        Xem các số hệ thống tự tính (không cần đo, chỉ để tham khảo)
+      </summary>
+      <div className="overflow-x-auto border-t border-ink-200">
+        <table className="w-full min-w-[560px] text-left text-[13px]">
           <thead>
             <tr className="border-b border-ink-200 bg-ink-50">
               <th className="px-4 py-2 font-semibold text-ink-700">Đại lượng</th>
               <th className="px-4 py-2 font-semibold text-ink-700">Giá trị</th>
-              <th className="px-4 py-2 font-semibold text-ink-700">Công thức</th>
               <th className="px-4 py-2 font-semibold text-ink-700">Căn cứ</th>
             </tr>
           </thead>
@@ -261,7 +215,6 @@ function DerivedTable({ derived }: { derived: DeriveResponse }) {
                 <tr key={row.key} className="border-b border-ink-100 last:border-0">
                   <td className="px-4 py-1.5 text-ink-900">{meta?.label ?? row.label}</td>
                   <td className="num px-4 py-1.5 font-semibold text-ink-900">{row.value}</td>
-                  <td className="num px-4 py-1.5 text-ink-600">{meta?.formula ?? '—'}</td>
                   <td className="px-4 py-1.5 text-ink-500">{meta?.standard ?? '—'}</td>
                 </tr>
               )
@@ -269,14 +222,6 @@ function DerivedTable({ derived }: { derived: DeriveResponse }) {
           </tbody>
         </table>
       </div>
-      <div className="border-t border-ink-200 px-4 py-2">
-        <DataRow
-          label="Vị trí lắp 3 camera (suy ra từ gương và mũi xe)"
-          value={Object.entries(derived.camera_positions)
-            .map(([id, position]) => `${id} (${position.map((v) => v.toFixed(2)).join(', ')})`)
-            .join('   ')}
-        />
-      </div>
-    </Panel>
+    </details>
   )
 }

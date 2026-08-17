@@ -50,7 +50,7 @@ class MockCameraSource:
                     "resolution": [camera.width, camera.height],
                     "source": camera.source or "mock://synthetic",
                     "fps": settings.stream_fps,
-                    "message": "Khung hinh gia lap dung dung mo hinh K + [R|T].",
+                    "message": "Khung hình mô phỏng, dựng từ đúng mô hình camera thật.",
                 }
             )
         return rows
@@ -84,7 +84,7 @@ class JetsonCameraSource:
             target = int(source)
         capture = cv2.VideoCapture(target)
         if not capture.isOpened():
-            raise RuntimeError(f"Khong mo duoc camera {camera_id} tai nguon {source!r}")
+            raise RuntimeError(f"Không mở được camera {camera_id} tại nguồn {source!r}")
         self._captures[camera_id] = capture
         return capture
 
@@ -93,15 +93,15 @@ class JetsonCameraSource:
 
         camera = profile.cameras[camera_id]
         if not camera.source:
-            raise RuntimeError(f"Camera {camera_id} chua khai bao nguon (RTSP hoac so USB).")
+            raise RuntimeError(f"Camera {camera_id} chưa khai báo nguồn (RTSP hoặc số USB).")
         capture = self._capture(camera_id, camera.source)
         ok, frame = capture.read()
         if not ok:
-            raise RuntimeError(f"Khong doc duoc khung hinh tu camera {camera_id}.")
+            raise RuntimeError(f"Không đọc được khung hình từ camera {camera_id}.")
         frame = cv2.resize(frame, (camera.width, camera.height))
         ok, encoded = cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, settings.jpeg_quality])
         if not ok:
-            raise RuntimeError("Ma hoa JPEG that bai.")
+            raise RuntimeError("Mã hoá JPEG thất bại.")
         return encoded.tobytes()
 
     def status(self, profile: VehicleProfile) -> list[dict]:
@@ -109,11 +109,11 @@ class JetsonCameraSource:
         for camera_id, camera in profile.cameras.items():
             online, message = False, ""
             if not camera.source:
-                message = "Chua khai bao nguon."
+                message = "Chưa khai báo nguồn."
             else:
                 try:
                     self._capture(camera_id, camera.source)
-                    online, message = True, "Ket noi duoc."
+                    online, message = True, "Kết nối được."
                 except Exception as exc:
                     message = str(exc)
             rows.append(

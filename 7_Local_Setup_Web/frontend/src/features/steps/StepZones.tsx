@@ -37,7 +37,15 @@ export function StepZones() {
   const [control, setControl] = useState(10)
   const [mode, setMode] = useState<ControlMode>('yaw_rate')
   const [preview, setPreview] = useState<ZonePreview | null>(null)
-  const [hidden, setHidden] = useState<Record<string, boolean>>({})
+  // Vung "detail" (cot A, cot B, phanh) mac dinh AN - chi hien 4 vung chinh
+  // luc dau, dung yeu cau "chi co 4 vung mu chinh".
+  const [hidden, setHidden] = useState<Record<string, boolean>>({
+    a_pillar_right: true,
+    a_pillar_left: true,
+    b_pillar_right: true,
+    b_pillar_left: true,
+    stopping_hazard: true,
+  })
   const [picked, setPicked] = useState<Point | null>(null)
   const [pickedZones, setPickedZones] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
@@ -147,6 +155,7 @@ export function StepZones() {
           <TopDownView
             geometry={geometry}
             preview={preview}
+            isRigid={isRigid}
             dictionary={dictionary}
             visibleZones={Object.fromEntries(
               Object.entries(hidden).map(([key, value]) => [key, !value]),
@@ -248,38 +257,82 @@ export function StepZones() {
             </div>
           </Panel>
 
-          <Panel title="Lớp hiển thị" dense>
+          <Panel
+            title="4 vùng mù chính"
+            subtitle="Ứng với 4 camera: phải, trái, trước, sau"
+            dense
+          >
             <div className="divide-y divide-ink-100">
-              {Object.entries(dictionary?.zones ?? {}).map(([name, meta]) => {
-                const polygon = preview?.zones[name]
-                const empty = !polygon || polygon.length === 0
-                return (
-                  <label
-                    key={name}
-                    className={`flex min-h-10 cursor-pointer items-center gap-2.5 px-3 py-1.5 ${empty ? 'opacity-45' : ''}`}
-                  >
-                    <input
-                      type="checkbox"
-                      className="h-4 w-4"
-                      checked={!hidden[name]}
-                      onChange={(event) =>
-                        setHidden((value) => ({ ...value, [name]: !event.target.checked }))
-                      }
-                    />
-                    <span
-                      className="h-3 w-3 shrink-0 rounded-[2px] border border-black/15"
-                      style={{ backgroundColor: meta.color }}
-                    />
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[13px]">{meta.label}</span>
-                      <span className="block truncate text-[11px] text-ink-500">{meta.note}</span>
-                    </span>
-                    {empty && <span className="shrink-0 text-[10px] text-ink-400">rỗng</span>}
-                  </label>
-                )
-              })}
+              {Object.entries(dictionary?.zones ?? {})
+                .filter(([, meta]) => meta.group === 'main')
+                .map(([name, meta]) => {
+                  const polygon = preview?.zones[name]
+                  const empty = !polygon || polygon.length === 0
+                  return (
+                    <label
+                      key={name}
+                      className={`flex min-h-10 cursor-pointer items-center gap-2.5 px-3 py-1.5 ${empty ? 'opacity-45' : ''}`}
+                    >
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4"
+                        checked={!hidden[name]}
+                        onChange={(event) =>
+                          setHidden((value) => ({ ...value, [name]: !event.target.checked }))
+                        }
+                      />
+                      <span
+                        className="h-3 w-3 shrink-0 rounded-[2px] border border-black/15"
+                        style={{ backgroundColor: meta.color }}
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[13px]">{meta.label}</span>
+                        <span className="block truncate text-[11px] text-ink-500">{meta.note}</span>
+                      </span>
+                      {empty && <span className="shrink-0 text-[10px] text-ink-400">Không có</span>}
+                    </label>
+                  )
+                })}
             </div>
           </Panel>
+
+          <details className="surface">
+            <summary className="cursor-pointer px-4 py-2.5 text-[13px] font-semibold text-ink-700">
+              Xem chi tiết (thành phần con của 4 vùng trên)
+            </summary>
+            <div className="divide-y divide-ink-100 border-t border-ink-200">
+              {Object.entries(dictionary?.zones ?? {})
+                .filter(([, meta]) => meta.group === 'detail')
+                .map(([name, meta]) => {
+                  const polygon = preview?.zones[name]
+                  const empty = !polygon || polygon.length === 0
+                  return (
+                    <label
+                      key={name}
+                      className={`flex min-h-10 cursor-pointer items-center gap-2.5 px-3 py-1.5 ${empty ? 'opacity-45' : ''}`}
+                    >
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4"
+                        checked={!hidden[name]}
+                        onChange={(event) =>
+                          setHidden((value) => ({ ...value, [name]: !event.target.checked }))
+                        }
+                      />
+                      <span
+                        className="h-3 w-3 shrink-0 rounded-[2px] border border-black/15"
+                        style={{ backgroundColor: meta.color }}
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-[13px]">{meta.label}</span>
+                        <span className="block truncate text-[11px] text-ink-500">{meta.note}</span>
+                      </span>
+                      {empty && <span className="shrink-0 text-[10px] text-ink-400">Không có</span>}
+                    </label>
+                  )
+                })}
+            </div>
+          </details>
         </div>
       </div>
 

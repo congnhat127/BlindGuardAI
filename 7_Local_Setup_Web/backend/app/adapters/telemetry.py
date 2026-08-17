@@ -59,7 +59,7 @@ class MockTelemetry:
                 "speed_kmh": round(speed_kmh, 2),
                 "course_deg": round((elapsed * 6.0) % 360.0, 1),
                 "is_lost": gps_lost,
-                "quality": "tot" if hdop < 1.5 else "kem",
+                "quality": "Tốt" if hdop < 1.5 else "Kém",
             },
             "imu": {
                 "present": True,
@@ -68,7 +68,7 @@ class MockTelemetry:
                 "roll_deg": round(0.4 * math.cos(elapsed / 3.5), 2),
                 "temperature_c": 38.5,
             },
-            "note": "Du lieu gia lap - cam GPS/IMU that thi so nay den tu NMEA va I2C.",
+            "note": "Dữ liệu mô phỏng — khi lắp GPS/IMU thật, số này lấy từ tín hiệu NMEA và I2C.",
         }
 
 
@@ -79,11 +79,11 @@ class JetsonTelemetry:
         return {
             "backend": self.backend,
             "timestamp": time.time(),
-            "gps": {"fix": False, "is_lost": True, "quality": "chua noi"},
+            "gps": {"fix": False, "is_lost": True, "quality": "Chưa nối"},
             "imu": {"present": False},
             "note": (
-                "Chua noi driver GPS/IMU that. Can trien khai doc NMEA tu "
-                "/dev/ttyTHS1 va IMU qua I2C trong ban tren xe."
+                "Chưa nối driver GPS/IMU thật. Cần đọc dữ liệu NMEA từ "
+                "/dev/ttyTHS1 và IMU qua I2C trên bản triển khai thật."
             ),
         }
 

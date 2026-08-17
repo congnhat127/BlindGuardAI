@@ -52,6 +52,31 @@ class ProfileStore:
     def _versions_dir(self, profile_id: str) -> Path:
         return self._dir(profile_id) / "versions"
 
+    def _images_dir(self, profile_id: str) -> Path:
+        return self._dir(profile_id) / "images"
+
+    # -- anh camera tai len (thay cho anh mo phong) --------------------------
+    def save_camera_image(self, profile_id: str, camera_id: str, content: bytes) -> Path:
+        """Luu anh chup thuc te cua mot camera. Anh nay se dung thay cho mo phong."""
+        directory = self._images_dir(profile_id)
+        directory.mkdir(parents=True, exist_ok=True)
+        path = directory / f"{camera_id}.jpg"
+        path.write_bytes(content)
+        return path
+
+    def load_camera_image(self, profile_id: str, camera_id: str) -> bytes | None:
+        path = self._images_dir(profile_id) / f"{camera_id}.jpg"
+        if not path.is_file():
+            return None
+        return path.read_bytes()
+
+    def delete_camera_image(self, profile_id: str, camera_id: str) -> None:
+        path = self._images_dir(profile_id) / f"{camera_id}.jpg"
+        path.unlink(missing_ok=True)
+
+    def has_camera_image(self, profile_id: str, camera_id: str) -> bool:
+        return (self._images_dir(profile_id) / f"{camera_id}.jpg").is_file()
+
     # -- doc -----------------------------------------------------------------
     def exists(self, profile_id: str) -> bool:
         return self._file(profile_id).is_file()

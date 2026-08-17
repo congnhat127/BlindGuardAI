@@ -24,6 +24,7 @@ export type DimensionKey =
 interface Props {
   geometry: DerivedGeometry
   preview?: ZonePreview | null
+  isRigid?: boolean
   dictionary?: Dictionary | null
   highlight?: DimensionKey
   visibleZones?: Record<string, boolean>
@@ -40,6 +41,7 @@ const PAD = 3.5
 export function TopDownView({
   geometry,
   preview,
+  isRigid = false,
   dictionary,
   highlight = null,
   visibleZones,
@@ -77,13 +79,27 @@ export function TopDownView({
     polygon.length ? `M ${polygon.map((p) => toSvg(p).join(' ')).join(' L ')} Z` : ''
 
   const vehicle = preview?.vehicle
-  const cab = vehicle?.cab ?? rect(geometry.cab_rear_x, geometry.cab_front_x, geometry.cab_half_w)
-  const chassis =
-    vehicle?.chassis ?? rect(-0.3, geometry.cab_rear_x, geometry.chassis_half_w)
-  const trailer =
-    vehicle?.trailer ?? rect(geometry.trail_rear_x, geometry.trail_front_x, geometry.trail_half_w)
-
   const colors = dictionary?.vehicle_colors ?? {}
+  const rigidBody = isRigid
+    ? (vehicle && vehicle.kind === 'rigid' ? vehicle.body : null) ??
+      rect(
+        geometry.trail_rear_x,
+        geometry.cab_front_x,
+        Math.max(geometry.cab_half_w, geometry.trail_half_w),
+      )
+    : null
+  const cab =
+    !isRigid && vehicle?.kind === 'articulated'
+      ? vehicle.cab
+      : rect(geometry.cab_rear_x, geometry.cab_front_x, geometry.cab_half_w)
+  const chassis =
+    !isRigid && vehicle?.kind === 'articulated'
+      ? vehicle.chassis
+      : rect(-0.3, geometry.cab_rear_x, geometry.chassis_half_w)
+  const trailer =
+    !isRigid && vehicle?.kind === 'articulated'
+      ? vehicle.trailer
+      : rect(geometry.trail_rear_x, geometry.trail_front_x, geometry.trail_half_w)
   const gridStep = width > 30 ? 2 : 1
 
   function handleClick(event: React.MouseEvent<SVGSVGElement>) {
@@ -142,26 +158,60 @@ export function TopDownView({
         })}
       </g>
 
-      {/* Than xe */}
-      <g strokeLinejoin="round">
-        <path d={path(trailer)} fill={colors.trailer ?? '#0284c7'} stroke="#075985" strokeWidth={0.04} />
-        <path d={path(chassis)} fill={colors.chassis ?? '#475569'} stroke="#1e293b" strokeWidth={0.03} />
-        <path d={path(cab)} fill={colors.cab ?? '#334155'} stroke="#0f172a" strokeWidth={0.04} />
-      </g>
-
-      {/* Truc banh xe: giup doc hinh hoc, khong phai trang tri. */}
-      <g stroke="#0f172a" strokeWidth={0.07} strokeLinecap="round">
-        <line x1={0} y1={-geometry.cab_half_w - 0.15} x2={0} y2={geometry.cab_half_w + 0.15} />
-        <line
-          x1={geometry.cab_front_x - 0.4}
-          y1={-geometry.cab_half_w - 0.15}
-          x2={geometry.cab_front_x - 0.4}
-          y2={geometry.cab_half_w + 0.15}
-        />
-      </g>
-
-      {/* Chot keo */}
-      <circle cx={geometry.d_hitch} cy={0} r={0.16} fill="#fff" stroke="#0f172a" strokeWidth={0.05} />
+      {/* Than xe: xe than lien la MOT khoi nguyen, xe dau keo tach 3 phan co khop noi. */}
+      {isRigid ? (
+        <g strokeLinejoin="round">
+          <path
+            d={path(rigidBody ?? [])}
+            fill={colors.cab ?? '#334155'}
+            stroke="#0f172a"
+            strokeWidth={0.045}
+          />
+          {/* 2 truc banh, khong co khop noi ma khong co duong chia than xe. */}
+          <g stroke="#0f172a" strokeWidth={0.06} strokeLinecap="round" opacity={0.55}>
+            <line
+              x1={geometry.cab_front_x - 0.35}
+              y1={-geometry.cab_half_w}
+              x2={geometry.cab_front_x - 0.35}
+              y2={geometry.cab_half_w}
+            />
+            <line
+              x1={geometry.trail_rear_x + 0.6}
+              y1={-geometry.cab_half_w}
+              x2={geometry.trail_rear_x + 0.6}
+              y2={geometry.cab_half_w}
+            />
+          </g>
+        </g>
+      ) : (
+        <g strokeLinejoin="round">
+          <path
+            d={path(trailer)}
+            fill={colors.trailer ?? '#0284c7'}
+            stroke="#075985"
+            strokeWidth={0.04}
+          />
+          <path
+            d={path(chassis)}
+            fill={colors.chassis ?? '#475569'}
+            stroke="#1e293b"
+            strokeWidth={0.03}
+          />
+          <path d={path(cab)} fill={colors.cab ?? '#334155'} stroke="#0f172a" strokeWidth={0.04} />
+          {/* Truc banh dau keo */}
+          <g stroke="#0f172a" strokeWidth={0.07} strokeLinecap="round">
+            <line x1={0} y1={-geometry.cab_half_w - 0.15} x2={0} y2={geometry.cab_half_w + 0.15} />
+            <line
+              x1={geometry.cab_front_x - 0.4}
+              y1={-geometry.cab_half_w - 0.15}
+              x2={geometry.cab_front_x - 0.4}
+              y2={geometry.cab_half_w + 0.15}
+            />
+          </g>
+          {/* Chot keo - chi xe khop noi moi co */}
+          <circle cx={geometry.d_hitch} cy={0} r={0.16} fill="#fff" stroke="#0f172a" strokeWidth={0.05} />
+        </g>
+      )}
 
       {showReferencePoints && (
         <g>
