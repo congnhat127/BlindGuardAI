@@ -1,0 +1,142 @@
+@import 'tailwindcss';
+
+/*
+  NGON NGU THIET KE
+  -----------------
+  Tham chieu: bang dieu khien thiet bi cong nghiep / may chan doan o to.
+  KHONG phai landing page SaaS.
+
+  Nguyen tac:
+    - Xam trung tinh + MOT mau nhan duy nhat (cam an toan). Do/vang/xanh chi
+      dung cho trang thai, khong dung trang tri.
+    - Bo goc 4px. Vien hairline 1px. Gan nhu khong dung do bong.
+    - Khong gradient, khong blur, khong glassmorphism, khong emoji.
+    - Chu so luon dung tabular-nums de cot so thang hang khi doi gia tri.
+    - Vung cham toi thieu 44px: thiet bi chinh la iPad/dien thoai cua tho.
+    - Sang mac dinh: tho lam viec ngoai troi ban ngay.
+*/
+
+@theme {
+  --color-ink-950: #14171a;
+  --color-ink-900: #1b1e23;
+  --color-ink-800: #2a2f36;
+  --color-ink-700: #3d444d;
+  --color-ink-600: #5a626c;
+  --color-ink-500: #7b838e;
+  --color-ink-400: #a3aab3;
+  --color-ink-300: #c7ccd2;
+  --color-ink-200: #dee1e5;
+  --color-ink-100: #eceef0;
+  --color-ink-50: #f5f6f7;
+
+  --color-accent-700: #8f3007;
+  --color-accent-600: #a83a09;
+  --color-accent-500: #c2410c;
+  --color-accent-100: #fbe8de;
+  --color-accent-50: #fdf3ee;
+
+  --color-ok-600: #15803d;
+  --color-ok-100: #dcf3e4;
+  --color-warn-600: #a16207;
+  --color-warn-100: #fbf0d5;
+  --color-bad-600: #b91c1c;
+  --color-bad-100: #f9dede;
+
+  --font-sans:
+    ui-sans-serif, system-ui, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: ui-monospace, 'Cascadia Mono', Consolas, 'Roboto Mono', monospace;
+
+  --radius-sm: 3px;
+  --radius-md: 4px;
+  --radius-lg: 6px;
+}
+
+@layer base {
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background: var(--color-ink-50);
+    color: var(--color-ink-900);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+    overscroll-behavior: none;
+  }
+
+  /* Moi con so trong ung dung nay la mot so do. Cho no thang hang. */
+  input[type='number'],
+  input[type='text'],
+  table,
+  .num {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Bo mui tang giam mac dinh: tho dung ban phim so tren tablet, mui rat de bam lech. */
+  input[type='number']::-webkit-outer-spin-button,
+  input[type='number']::-webkit-inner-spin-button {
+    appearance: none;
+    margin: 0;
+  }
+  input[type='number'] {
+    -moz-appearance: textfield;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-accent-500);
+    outline-offset: 1px;
+  }
+}
+
+@layer components {
+  /* Nhan muc nho kieu bang dieu khien thiet bi. */
+  .label-caps {
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--color-ink-600);
+  }
+
+  .surface {
+    background: #fff;
+    border: 1px solid var(--color-ink-200);
+    border-radius: var(--radius-md);
+  }
+
+  .hairline {
+    border-color: var(--color-ink-200);
+  }
+
+  /* Khong cho anh camera bi lam min khi zoom: tho can thay dung pixel de cham. */
+  .pixelated {
+    image-rendering: pixelated;
+  }
+
+  .no-select {
+    user-select: none;
+    -webkit-user-select: none;
+  }
+}
+
+/* Trang in bien ban nghiem thu. */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: #fff;
+  }
+  .surface {
+    border-color: #999;
+  }
+}

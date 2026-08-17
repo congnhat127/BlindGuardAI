@@ -66,3 +66,15 @@ logs/
 runs/
 *.mp4
 *.avi
+
+# Web cài đặt tại xe (Tier 1)
+# static/ là bản build của frontend, sinh lại bằng `npm run build` khi triển khai.
+7_Local_Setup_Web/backend/static/
+# data/ là hồ sơ xe thật của từng thiết bị, không thuộc mã nguồn.
+7_Local_Setup_Web/backend/data/
+7_Local_Setup_Web/frontend/node_modules/
+7_Local_Setup_Web/frontend/tsconfig.tsbuildinfo
+
+# Quy tắc `lib/` ở trên (dành cho build artifact Python) vô tình bắt luôn thư mục
+# mã nguồn frontend/src/lib. Gỡ ngoại lệ cho đúng thư mục đó.
+!7_Local_Setup_Web/frontend/src/lib/

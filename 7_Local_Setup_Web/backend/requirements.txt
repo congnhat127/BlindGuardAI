@@ -1,0 +1,14 @@
+# BlindGuard AI - Local Setup Web (Tier 1) - Backend
+# Chay tren Jetson hoac laptop (che do mock, khong can phan cung)
+
+fastapi==0.118.0
+uvicorn[standard]==0.37.0
+pydantic==2.11.9
+pydantic-settings==2.11.0
+PyYAML==6.0.2
+numpy==2.3.3
+Pillow==11.3.0
+python-multipart==0.0.20
+
+# Tuy chon: chi can khi cam camera that / dung solvePnP
+# opencv-python-headless==4.12.0.88

@@ -11,6 +11,7 @@ Dự án tham gia cuộc thi "Thiết kế điện tử Việt Nam 2026" (VEDC 2
 - `4_Cabin_HUD_UI/`: Giao diện hiển thị HUD trong cabin (Explainable AI).
 - `5_Web_Cloud_Dashboard/`: Web quản trị đám mây và Backend API cho dữ liệu lưu trữ sự kiện suýt va chạm.
 - `6_Docs_and_References/`: Tài liệu dự án, cấu trúc giải pháp và quy trình làm việc.
+- `7_Local_Setup_Web/`: Web cài đặt tại xe (Tier 1) — công cụ cho kỹ thuật viên thiết lập kích thước xe và căn chỉnh camera bằng điện thoại/iPad, chạy trực tiếp trên Jetson. Xem `7_Local_Setup_Web/README.md`.
 
 ## Quy trình làm việc (Git Workflow)
 Vui lòng tham khảo tài liệu trong `6_Docs_and_References/05_git_workflow_guidelines` để nắm rõ quy trình commit và push code của nhóm.
