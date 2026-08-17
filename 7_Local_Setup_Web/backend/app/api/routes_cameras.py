@@ -192,10 +192,12 @@ def reference_cones(profile_id: str, camera_id: str) -> dict:
         "cones": scene.cone_truth_table(camera_id),
         "editable": True,
         "note": (
-            "Che do mock: day la vi tri chop non that trong anh gia lap. "
-            "Ngoai hien truong phai thay bang so do bang thuoc."
+            "Chế độ mô phỏng: đây đúng là vị trí chóp nón trong ảnh giả lập, "
+            "dùng để tập quy trình. Ngoài hiện trường, xoá 4 số này và nhập "
+            "đúng khoảng cách bạn đo bằng thước dây từ tâm trục sau đầu kéo "
+            "đến từng chóp nón thật."
             if settings.is_mock
-            else "Nhap toa do met da do bang thuoc cho tung chop non."
+            else "Nhập khoảng cách đo bằng thước dây từ tâm trục sau đầu kéo đến từng chóp nón."
         ),
     }
 
@@ -226,8 +228,9 @@ class GridRequest(BaseModel):
 def project_grid(payload: GridRequest) -> dict:
     """Luoi met chieu san sang duoi dang cac chuoi polyline pixel.
 
-    Ky thuat vien chinh pitch/yaw cho den khi luoi nay trung voi vach ke duong
-    va cac vat moc that trong anh - do la cach cang chinh bang mat de nhat.
+    Ky thuat vien chinh pitch/yaw cho den khi khoang cach giua cac o luoi
+    khop voi khoang cach thuc te giua 4 chop non da do bang thuoc - day la
+    cach cang chinh bang mat, thay cho bam nut "Giai goc lap".
     """
     camera = payload.camera
     x0, x1 = sorted(payload.x_range)

@@ -322,7 +322,7 @@ export function StepCalibrate() {
                 checked={showGrid}
                 onChange={setShowGrid}
                 label="Hiện lưới mét 1×1 m"
-                hint="Lưới phải trùng vạch kẻ và vật mốc thật thì góc mới đúng"
+                hint="Camera nhìn chéo xuống mặt đường nên lưới sẽ méo dần theo khoảng cách (ô gần to, ô xa nhỏ) — đó là bình thường. Cách kiểm tra: 2 chóp nón cách nhau 1 m ngoài thực tế thì trên ảnh phải rơi đúng 1 ô lưới, không cần ô lưới trông vuông đều."
               />
             </div>
             {live && !hasUploadedImage && (
@@ -420,7 +420,8 @@ export function StepCalibrate() {
               )}
               {verified?.verdict === 'fail' && (
                 <p className="text-xs text-bad-600">
-                  Sai số còn quá lớn. Đo lại vị trí vật mốc, kiểm tra HFOV ống kính và độ cao lắp.
+                  Sai số còn quá lớn. Đo lại vị trí 4 chóp nón bằng thước dây, kiểm tra góc nhìn ống
+                  kính (HFOV) và độ cao lắp camera.
                 </p>
               )}
             </div>
@@ -476,8 +477,8 @@ function ConeTable({
 
   return (
     <Panel
-      title="Vật mốc trên bãi"
-      subtitle="Toạ độ mét đo bằng thước dây, trong hệ toạ độ xe"
+      title="4 chóp nón đặt trên bãi"
+      subtitle="Bước 1: đo vị trí thật bằng thước dây. Bước 2: chạm vào chân từng chóp nón trong ảnh bên trái."
       dense
     >
       <div className="divide-y divide-ink-100">
@@ -492,15 +493,20 @@ function ConeTable({
                 >
                   {cone.index}
                 </span>
-                <span className="text-[13px] font-medium text-ink-900">{cone.name}</span>
+                <span className="text-[13px] font-medium text-ink-900">
+                  Chóp nón {cone.name}
+                </span>
                 {point ? (
-                  <Badge tone="ok">đã chạm</Badge>
+                  <Badge tone="ok">Đã chạm trong ảnh</Badge>
                 ) : (
-                  <Badge tone="neutral">chưa chạm</Badge>
+                  <Badge tone="neutral">Chưa chạm trong ảnh</Badge>
                 )}
               </div>
+              <p className="mt-1 text-[11.5px] text-ink-500">
+                Nhập đúng khoảng cách bạn đo bằng thước dây từ tâm trục sau đầu kéo đến chóp nón này.
+              </p>
               <div className="mt-1.5 grid grid-cols-2 gap-2">
-                <Field label="x (trước +)">
+                <Field label="Cách trước/sau xe (m)" hint="Phía trước xe: số dương. Phía sau xe: số âm.">
                   <NumberInput
                     value={cone.x}
                     step={0.05}
@@ -511,7 +517,7 @@ function ConeTable({
                     }}
                   />
                 </Field>
-                <Field label="y (trái +)">
+                <Field label="Cách trái/phải xe (m)" hint="Bên trái xe: số dương. Bên phải xe: số âm.">
                   <NumberInput
                     value={cone.y}
                     step={0.05}
@@ -525,7 +531,9 @@ function ConeTable({
               </div>
               {point && (
                 <p className="num mt-1 text-[11.5px] text-ink-500">
-                  Góc hiện tại quy ra: {measured[cone.index] ?? '…'} m
+                  Theo góc camera đang lưu, chóp nón này đang được tính ở vị trí:{' '}
+                  {measured[cone.index] ?? '…'} m — nếu số này lệch nhiều so với số bạn đo, góc lắp
+                  camera đang sai.
                 </p>
               )}
             </div>
@@ -632,7 +640,10 @@ function ManualAngles({
   onChange: (patch: Partial<CameraConfig>) => void
 }) {
   return (
-    <Panel title="Chỉnh tay (nếu không dùng giải tự động)" subtitle="Kéo cho lưới mét trùng vạch kẻ thật">
+    <Panel
+      title="Chỉnh tay (nếu không dùng giải tự động)"
+      subtitle="Kéo đến khi khoảng cách giữa các chóp nón trên lưới đúng với khoảng cách bạn đo bằng thước"
+    >
       <div className="space-y-3">
         <Slider
           label="Góc cúi xuống của camera"
