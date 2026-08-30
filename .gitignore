@@ -66,3 +66,6 @@ logs/
 runs/
 *.mp4
 *.avi
+
+# Thư mục chứa dữ liệu tự động trích xuất và gán nhãn
+1_AI_Processing_Edge/pseudo_labeling/pseudo_labeled/
