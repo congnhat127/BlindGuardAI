@@ -1,4 +1,7 @@
 # 📘 TÀI LIỆU TOÁN HỌC VÀ TIÊU CHUẨN KỸ THUẬT: DYNAMIC SURROUND HAZARD MODEL
+
+> **TÀI LIỆU LEGACY — KHÔNG DÙNG ĐỂ TRIỂN KHAI DHZ HIỆN TẠI.** Mô hình buffer tăng trực tiếp theo tốc độ, stopping cone và cảnh báo chỉ vì object nằm trong polygon ở tài liệu này đã bị loại bỏ. Công thức chính thức hiện nằm trong [`README.md`](README.md) và `dhz_calculator.py`.
+
 *(Mô hình Vùng Nguy Hiểm Động học Bao quanh Xe Đầu Kéo)*
 
 ## 1. TRIẾT LÝ HỆ THỐNG

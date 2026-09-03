@@ -93,7 +93,15 @@ class PureOcclusionCalculator:
         return {"cab": cab, "chassis": chassis, "trailer": trailer, "pivot": pivot}
 
     def compute_stopping_hazard(self, v):
-        """Vùng nguy hiểm phanh phía trước mũi xe (Dựa vào thời gian phản ứng & Ma sát)"""
+        """
+        PHONG BÌ DỪNG XE PHÍA TRƯỚC — KHÔNG PHẢI VÙNG ĐIỂM MÙ.
+
+        Công thức hiện tại d = v*T + v^2/(2*mu*g) chỉ là baseline vật lý trên đường
+        bằng, khô, dùng gia tốc hãm lý tưởng mu*g. Không được union đa giác này với
+        near_field_hazard thành một "vùng điểm mù tổng". Đối với cảnh báo va chạm trước
+        thực tế nên dùng khoảng cách tương đối/TTC tới từng đối tượng và mô hình phanh
+        xe tải đã hiệu chuẩn (tải trọng, độ trễ khí nén, độ dốc, mặt đường).
+        """
         d_react = v * config.REACTION_TIME
         d_brake = (v**2) / (2 * config.FRICTION_COEFF * config.GRAVITY)
         d_total = d_react + d_brake
@@ -116,59 +124,109 @@ class PureOcclusionCalculator:
             "front_hazard_polygon": front_hazard
         }
 
-    def compute_dynamic_surround_hazard(self, v, time_horizon=2.0, num_steps=6):
+    def path_curvature(self, v):
+        """Độ cong quỹ đạo đầu kéo kappa = 1/R (rad/m)."""
+        if abs(v) > 1e-5:
+            return self.yaw_rate / v
+        front_wheel_angle = self.steering_angle / config.STEER_RATIO
+        return math.tan(front_wheel_angle) / config.WHEELBASE_TRACTOR
+
+    @staticmethod
+    def _to_current_vcs(points, x, y, theta):
+        """Đưa đa giác ở tư thế tương lai về hệ VCS của xe tại thời điểm hiện tại."""
+        c, s = math.cos(theta), math.sin(theta)
+        return [(px * c - py * s + x, px * s + py * c + y) for px, py in points]
+
+    def compute_base_near_field_hazard(self):
+        """Biên cận kề cố định quanh thân xe ở tư thế hiện tại."""
+        veh = self.get_vehicle_polygons()
+        body = unary_union([
+            Polygon(veh["cab"]), Polygon(veh["chassis"]), Polygon(veh["trailer"])
+        ])
+        return list(body.buffer(config.NEAR_FIELD_BUFFER_BASE, join_style=2).exterior.coords)
+
+    def compute_near_field_hazard(self, v):
         """
-        [LỚP BẢO VỆ CHÍNH]: DYNAMIC SURROUND HAZARD ZONE
-        Dự đoán quỹ đạo lấn lề (Swept Path) trong tương lai và hợp nhất.
-        Tạo ra một Vùng Nguy Hiểm Động bao trọn hoàn toàn quỹ đạo rẽ của rơ-moóc.
+        Vùng cận kề động = hợp của các tư thế thân xe trên đoạn đường ngắn s phía trước,
+        sau đó buffer cố định 1 m. Horizon tính theo QUÃNG ĐƯỜNG (m), không theo thời
+        gian, nên không phình theo tốc độ và không trùng với vùng phanh.
+
+        Mô hình theo tọa độ cung đường:
+            dx/ds = cos(theta), dy/ds = sin(theta), dtheta/ds = kappa
+            dgamma/ds = kappa - sin(gamma)/L_trail
+        Khi kappa != 0, rơ-moóc cắt vào phía trong đường cong (low-speed off-tracking),
+        vì vậy hợp các tư thế tạo ra phần vùng quét mở rộng bất đối xứng đúng hướng rẽ.
         """
-        dynamic_buffer = config.HAZARD_BUFFER_BASE + (v * config.HAZARD_BUFFER_SPEED_FACTOR)
-        
-        # Lưu trạng thái hiện tại
-        saved_gamma = self.gamma
-        
+        saved_gamma = float(self.gamma)
+        curvature = self.path_curvature(v)
+        distance = min(abs(v) * config.HAZARD_PREVIEW_TIME_SEC,
+                       config.HAZARD_PREVIEW_DISTANCE_MAX_M)
+        steps = max(1, config.HAZARD_SWEEP_STEPS)
+        ds = distance / steps
+
+        sim_x = sim_y = sim_theta = 0.0
+        sim_gamma = saved_gamma
         polys_to_union = []
-        sim_x, sim_y, sim_theta = 0.0, 0.0, 0.0
-        dt_sim = time_horizon / num_steps if num_steps > 0 else 0
-        
-        for _ in range(num_steps + 1):
+
+        for step in range(steps + 1):
+            self.gamma = sim_gamma
             veh = self.get_vehicle_polygons()
-            
-            # Đưa về World Coords tương đối
-            cab_world = self.rotate_polygon(veh["cab"], sim_theta)
-            cab_world = [(px + sim_x, py + sim_y) for px, py in cab_world]
-            
-            trail_world = self.rotate_polygon(veh["trailer"], sim_theta)
-            trail_world = [(px + sim_x, py + sim_y) for px, py in trail_world]
-            
-            polys_to_union.append(Polygon(cab_world))
-            polys_to_union.append(Polygon(trail_world))
-            
-            if v > 0.1:
-                sim_x += v * math.cos(sim_theta) * dt_sim
-                sim_y += v * math.sin(sim_theta) * dt_sim
-                sim_theta += self.yaw_rate * dt_sim
-                
-                if config.L_TRAIL > 0:
-                    d_gamma = self.yaw_rate - (v / config.L_TRAIL) * math.sin(self.gamma)
-                    self.gamma += d_gamma * dt_sim
-                    mech_max = math.radians(config.MECHANICAL_MAX_GAMMA_DEG)
-                    self.gamma = np.clip(self.gamma, -mech_max, mech_max)
-        
+            for part in ("cab", "chassis", "trailer"):
+                pts = self._to_current_vcs(veh[part], sim_x, sim_y, sim_theta)
+                polys_to_union.append(Polygon(pts))
+
+            if step == steps:
+                break
+
+            # Tích phân chính xác cung tròn cho tư thế đầu kéo trên đoạn ds.
+            next_theta = sim_theta + curvature * ds
+            if abs(curvature) > 1e-8:
+                sim_x += (math.sin(next_theta) - math.sin(sim_theta)) / curvature
+                sim_y += (math.cos(sim_theta) - math.cos(next_theta)) / curvature
+            else:
+                sim_x += math.cos(sim_theta) * ds
+                sim_y += math.sin(sim_theta) * ds
+            sim_theta = next_theta
+
+            if config.L_TRAIL > 0:
+                d_gamma_ds = curvature - math.sin(sim_gamma) / config.L_TRAIL
+                sim_gamma += d_gamma_ds * ds
+                max_gamma = math.radians(config.MECHANICAL_MAX_GAMMA_DEG)
+                sim_gamma = float(np.clip(sim_gamma, -max_gamma, max_gamma))
+
         self.gamma = saved_gamma
-        
-        combined_path = unary_union(polys_to_union)
-        hazard_bubble = combined_path.buffer(dynamic_buffer, join_style=2)
-        
-        return list(hazard_bubble.exterior.coords)
+        swept_body = unary_union(polys_to_union)
+        hazard = swept_body.buffer(config.NEAR_FIELD_BUFFER_BASE, join_style=2)
+        return list(hazard.exterior.coords)
+
+    def compute_hazard_zone(self, v):
+        """
+        Kết quả cuối cùng của hệ thống: MỘT vùng nguy hiểm duy nhất.
+
+        Các thành phần vật lý (quỹ đạo quét cận kề và khoảng dừng phía trước) chỉ là
+        dữ liệu trung gian; chúng được hợp bằng phép union trước khi trả ra ngoài.
+        """
+        near_field = Polygon(self.compute_near_field_hazard(v))
+        stopping_data = self.compute_stopping_hazard(v)
+        stopping = Polygon(stopping_data["front_hazard_polygon"])
+
+        geometries = [near_field]
+        if stopping.is_valid and stopping.area > 1e-8:
+            geometries.append(stopping)
+
+        combined = unary_union(geometries).buffer(0)
+        if combined.geom_type == "MultiPolygon":
+            combined = max(combined.geoms, key=lambda geom: geom.area)
+        return list(combined.exterior.coords)
 
     def compute_all(self, v, input_val, dt=0.0333, is_steering_angle=False):
         """Tổng hợp kết quả"""
         gamma = self.update_kinematics(v, input_val, dt, is_steering_angle)
         veh = self.get_vehicle_polygons()
-        
-        # Tự động phình to rẽ dựa trên tốc độ và góc lái
-        surround_hazard = self.compute_dynamic_surround_hazard(v, time_horizon=1.5, num_steps=5)
+
+        # API chính thức chỉ trả MỘT polygon cảnh báo cuối cùng. Các phép tính
+        # near-field/stopping là chi tiết nội bộ, không phải hai vùng cảnh báo riêng.
+        hazard_zone = self.compute_hazard_zone(v)
         stopping = self.compute_stopping_hazard(v)
 
         return {
@@ -176,8 +234,12 @@ class PureOcclusionCalculator:
             "gamma_deg": math.degrees(gamma),
             "yaw_rate": self.yaw_rate,
             "vehicle": veh,
-            "surround_hazard": surround_hazard,
-            "stopping_hazard": stopping
+            "hazard_zone": hazard_zone,
+            "metrics": {
+                "d_reaction": stopping["d_reaction"],
+                "d_braking": stopping["d_braking"],
+                "d_total": stopping["d_total"]
+            }
         }
 
     @staticmethod
