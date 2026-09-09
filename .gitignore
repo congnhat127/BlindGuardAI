@@ -66,3 +66,6 @@ logs/
 runs/
 *.mp4
 *.avi
+1_AI_Processing_Edge/frame_extraction/raw_videos/
+1_AI_Processing_Edge/frame_extraction/extracted_frames/
+1_AI_Processing_Edge/pseudo_labeling/
