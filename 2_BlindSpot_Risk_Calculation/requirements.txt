@@ -1,0 +1,9 @@
+# ==============================================================================
+# REQUIREMENTS - 2_BlindSpot_Risk_Calculation
+# Phân hệ tính toán Vùng Điểm Mù Động (dynamic_blind_zone) & BSRI Engine
+# Yêu cầu: Python 3.11.9 (khớp với venv .venv trong thư mục này)
+# ==============================================================================
+
+numpy==2.4.6         # Đại số tuyến tính, ma trận xoay/chiếu camera
+shapely==2.1.2        # Hình học tính toán: Polygon, unary_union, Minkowski buffer
+matplotlib==3.11.1    # Trực quan hóa mô phỏng (visualizer.py, occlusion_visualizer.py)
