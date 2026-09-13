@@ -1,5 +1,5 @@
 # YOLOv11 & Pytorch
-ultralytics==8.0.200 # Hoặc phiên bản mới nhất hỗ trợ yolo11
+ultralytics>=8.3.0
 torch
 torchvision
 torchaudio
