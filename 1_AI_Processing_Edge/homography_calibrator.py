@@ -1,12 +1,19 @@
 """
 Module: homography_calibrator.py
-Mô tả: Module tính toán và chuyển đổi tọa độ từ mặt phẳng ảnh 2D (pixel) sang mặt đất thế giới thực 3D (mét)
-       bằng ma trận Homography (Z_w = 0).
+Mô tả: Module tính toán và chuyển đổi tọa độ từ mặt phẳng ảnh 2D (pixel) sang mặt đất 3D (mét)
+       bằng ma trận Homography theo chuẩn Hệ tọa độ xe (Vehicle Coordinate System - VCS)
+       tuân thủ tiêu chuẩn ISO 8855 / SAE J670 của dự án BlindGuard AI.
 
-Hệ tọa độ xe (Vehicle / Camera Ground Frame):
-- Trục Y (m): Khoảng cách dọc về phía trước tính từ camera (Longitudinal distance, Y > 0)
-- Trục X (m): Khoảng cách ngang tính từ tâm camera (Lateral distance, X < 0: bên trái, X > 0: bên phải)
-- Khoảng cách tổng thể: D = sqrt(X^2 + Y^2) (m)
+QUY ƯỚC HỆ TỌA ĐỘ XE (VCS - VEHICLE COORDINATE SYSTEM):
+- Gốc (0, 0, 0): Tâm trục sau xe đầu kéo (Rear Axle Center), mặt đường Z = 0.
+- Trục X (Longitudinal): Hướng dọc thân xe về PHÍA TRƯỚC (X > 0: Phía trước đầu xe, X < 0: Phía sau xe/rơ-moóc).
+- Trục Y (Lateral): Hướng ngang thân xe sang BÊN TRÁI (Y > 0: Bên Trái xe, Y < 0: Bên Phải xe).
+- Trục Z (Vertical): Hướng đứng lên trời (Up, Z = 0 là mặt đường phẳng).
+
+CÔNG THỨC QUY ĐỔI HOMOGRAPHY (2D PIXEL -> 3D MÉT MẶT ĐẤT Z_vcs = 0):
+    [x']       [u]
+    [y'] = H * [v]   ===>   X_vcs = x' / w'   (Khoảng cách dọc - Tiến/Lùi)
+    [w']       [1]          Y_vcs = y' / w'   (Khoảng cách ngang - Trái(+)/Phải(-))
 """
 
 import json
@@ -18,13 +25,14 @@ import numpy as np
 
 class HomographyCalibrator:
     def __init__(self, config_path=None):
-        self.H = None          # Ma trận chuyển đổi 2D Pixel -> 3D Mét (3x3)
-        self.H_inv = None      # Ma trận nghịch đảo 3D Mét -> 2D Pixel (3x3)
+        self.H = None          # Ma trận Homography Pixel -> Mét (3x3)
+        self.H_inv = None      # Ma trận nghịch đảo Mét -> Pixel (3x3)
         self.pts_image = []    # 4 điểm pixel trên ảnh [(u1, v1), ...]
-        self.pts_world = []    # 4 điểm thực tế [(X1, Y1), ...] (đơn vị: mét)
+        self.pts_world = []    # 4 điểm VCS mặt đất [(X1_vcs, Y1_vcs), ...] (đơn vị: mét)
         self.image_shape = None
         self.reprojection_error = 0.0
         self.created_at = None
+        self.camera_name = "FRONT_CAM"  # Mặc định hoặc 'MIRROR_R', 'MIRROR_L'
 
         if config_path:
             self.load_from_json(config_path)
@@ -33,32 +41,35 @@ class HomographyCalibrator:
     def is_calibrated(self):
         return self.H is not None and self.H.shape == (3, 3)
 
-    def compute_homography(self, pts_image, pts_world, image_shape=None):
+    def compute_homography(self, pts_image, pts_world, image_shape=None, camera_name="FRONT_CAM"):
         """
-        Tính toán ma trận Homography từ các cặp điểm tương ứng.
-        :param pts_image: Danh sách ít nhất 4 điểm pixel: [(u, v), ...]
-        :param pts_world: Danh sách ít nhất 4 điểm thực tế: [(X, Y), ...] đơn vị mét
-        :param image_shape: (height, width) của ảnh gốc
+        Tính toán ma trận Homography từ 4 cặp điểm tương ứng.
+        :param pts_image: [(u, v), ...] - Tọa độ pixel trên ảnh
+        :param pts_world: [(X_vcs, Y_vcs), ...] - Tọa độ mét theo hệ VCS
+                          X: Dọc (tiến > 0, lùi < 0)
+                          Y: Ngang (trái > 0, phải < 0)
+        :param image_shape: (height, width) ảnh gốc
+        :param camera_name: Tên camera ('FRONT_CAM', 'MIRROR_R', 'MIRROR_L', ...)
         :return: (H, reprojection_error)
         """
         if len(pts_image) < 4 or len(pts_world) < 4 or len(pts_image) != len(pts_world):
-            raise ValueError("Cần ít nhất 4 cặp điểm tương ứng để tính ma trận Homography!")
+            raise ValueError("Cần ít nhất 4 cặp điểm tương ứng (Pixel và Mét) để tính ma trận Homography!")
 
         src_pts = np.array(pts_image, dtype=np.float32).reshape(-1, 1, 2)
         dst_pts = np.array(pts_world, dtype=np.float32).reshape(-1, 1, 2)
 
-        # Tính ma trận H: Pixel -> Mét
         method = cv2.RANSAC if len(pts_image) > 4 else 0
         H, mask = cv2.findHomography(src_pts, dst_pts, method)
 
         if H is None:
-            raise RuntimeError("Không thể tìm ma trận Homography (các điểm có thể bị suy biến hoặc đồng tuyến)!")
+            raise RuntimeError("Không thể tìm ma trận Homography (các điểm có thể bị đồng tuyến hoặc suy biến)!")
 
         self.H = H
         self.H_inv = np.linalg.inv(H)
         self.pts_image = [tuple(map(float, p)) for p in pts_image]
         self.pts_world = [tuple(map(float, p)) for p in pts_world]
         self.image_shape = image_shape
+        self.camera_name = camera_name
         self.created_at = time.strftime("%Y-%m-%d %H:%M:%S")
 
         # Tính sai số tái chiếu trung bình (Mean Reprojection Error - mét)
@@ -70,24 +81,27 @@ class HomographyCalibrator:
 
     def pixel_to_world(self, u, v):
         """
-        Chuyển đổi 1 điểm tọa độ pixel (u, v) sang tọa độ thế giới thực (X, Y) tính bằng mét.
-        :return: (X_m, Y_m, distance_m)
+        Chuyển đổi 1 điểm tọa độ pixel (u, v) sang tọa độ thế giới thực (X_vcs, Y_vcs) theo chuẩn ISO/SAE (mét).
+        :return: (X_vcs, Y_vcs, distance_m)
+                 X_vcs: Dọc (tiến > 0, lùi < 0)
+                 Y_vcs: Ngang (trái > 0, phải < 0)
+                 distance_m: Khoảng cách Euclid tới gốc tọa độ
         """
         if not self.is_calibrated:
             raise RuntimeError("Chưa tính toán ma trận Homography!")
 
         pt = np.array([[[float(u), float(v)]]], dtype=np.float32)
         dst = cv2.perspectiveTransform(pt, self.H)
-        x_m = float(dst[0][0][0])
-        y_m = float(dst[0][0][1])
-        dist_m = float(np.sqrt(x_m**2 + y_m**2))
-        return x_m, y_m, dist_m
+        x_vcs = float(dst[0][0][0])
+        y_vcs = float(dst[0][0][1])
+        dist_m = float(np.sqrt(x_vcs**2 + y_vcs**2))
+        return x_vcs, y_vcs, dist_m
 
     def batch_pixel_to_world(self, pts_pixel):
         """
-        Chuyển đổi danh sách nhiều điểm pixel sang tọa độ mét.
-        :param pts_pixel: Mảng hoặc list [(u, v), ...]
-        :return: Mảng Nx2 chứa tọa độ [(X_m, Y_m), ...]
+        Chuyển đổi nhiều điểm pixel sang tọa độ mét VCS.
+        :param pts_pixel: Mảng hoặc danh sách [(u, v), ...]
+        :return: Mảng Nx2 [(X_vcs, Y_vcs), ...]
         """
         if not self.is_calibrated:
             raise RuntimeError("Chưa tính toán ma trận Homography!")
@@ -96,70 +110,42 @@ class HomographyCalibrator:
         dst = cv2.perspectiveTransform(pts, self.H)
         return dst.reshape(-1, 2)
 
-    def world_to_pixel(self, x_m, y_m):
+    def world_to_pixel(self, x_vcs, y_vcs):
         """
-        Chiếu ngược tọa độ thực tế (X, Y) mét về tọa độ pixel (u, v) trên ảnh.
-        :return: (u, v) là float hoặc int
+        Chiếu ngược từ tọa độ mét VCS (X, Y) ra tọa độ pixel (u, v) trên ảnh.
+        :return: (u, v)
         """
         if not self.is_calibrated:
             raise RuntimeError("Chưa tính toán ma trận Homography!")
 
-        pt = np.array([[[float(x_m), float(y_m)]]], dtype=np.float32)
+        pt = np.array([[[float(x_vcs), float(y_vcs)]]], dtype=np.float32)
         dst = cv2.perspectiveTransform(pt, self.H_inv)
         u = float(dst[0][0][0])
         v = float(dst[0][0][1])
         return u, v
 
-    def generate_ground_grid_lines(self, x_range=(-4.0, 4.0), y_range=(1.0, 15.0), step_x=1.0, step_y=1.0, num_samples=30):
-        """
-        Tạo các đoạn thẳng lưới ô cờ 3D trên mặt đất (mỗi ô 1m x 1m) và chiếu ngược lên tọa độ pixel ảnh.
-        Dùng để vẽ trực quan phối cảnh mặt đất trên ảnh.
-        :return: Danh sách các đoạn thẳng pixel [ [(u1, v1), (u2, v2), ...], ... ]
-        """
-        if not self.is_calibrated:
-            return []
-
-        grid_polylines = []
-        min_x, max_x = x_range
-        min_y, max_y = y_range
-
-        # 1. Các đường ngang (cách camera theo trục Y, mỗi đường cách nhau step_y mét)
-        y_vals = np.arange(min_y, max_y + 0.1, step_y)
-        for y in y_vals:
-            xs = np.linspace(min_x, max_x, num_samples)
-            line_pts_world = np.stack([xs, np.full_like(xs, y)], axis=1).reshape(-1, 1, 2).astype(np.float32)
-            pts_img = cv2.perspectiveTransform(line_pts_world, self.H_inv).reshape(-1, 2)
-            grid_polylines.append((pts_img, f"{y:.0f}m"))
-
-        # 2. Các đường dọc (song song hướng nhìn xe, mỗi đường cách nhau step_x mét)
-        x_vals = np.arange(min_x, max_x + 0.1, step_x)
-        for x in x_vals:
-            ys = np.linspace(min_y, max_y, num_samples)
-            line_pts_world = np.stack([np.full_like(ys, x), ys], axis=1).reshape(-1, 1, 2).astype(np.float32)
-            pts_img = cv2.perspectiveTransform(line_pts_world, self.H_inv).reshape(-1, 2)
-            grid_polylines.append((pts_img, f"{x:+.0f}m" if x != 0 else "0m"))
-
-        return grid_polylines
-
     def save_to_json(self, filepath, metadata=None):
-        """Lưu ma trận và cấu hình ra file JSON"""
+        """Lưu ma trận và metadata theo chuẩn cấu hình hệ thống BlindGuard AI"""
         if not self.is_calibrated:
             raise RuntimeError("Chưa có ma trận Homography để lưu!")
 
         data = {
             "created_at": self.created_at or time.strftime("%Y-%m-%d %H:%M:%S"),
-            "homography_matrix_pixel_to_meter": self.H.tolist(),
-            "homography_matrix_meter_to_pixel": self.H_inv.tolist(),
-            "points_image_pixel": self.pts_image,
-            "points_world_meter": self.pts_world,
-            "reprojection_error_meters": self.reprojection_error,
-            "image_shape": list(self.image_shape) if self.image_shape else None,
+            "camera_name": self.camera_name,
             "coordinate_system": {
+                "standard": "ISO 8855 / SAE J670 (Vehicle Coordinate System - VCS)",
                 "unit": "meter",
-                "axis_x": "Lateral (Left < 0, Right > 0)",
-                "axis_y": "Longitudinal (Forward > 0)",
-                "origin": "Camera Ground Projection (X=0, Y=0)"
-            }
+                "axis_x": "Longitudinal (Forward > 0, Rearward < 0)",
+                "axis_y": "Lateral (Left > 0, Right < 0)",
+                "axis_z": "Vertical (Upward > 0, Ground Z = 0)",
+                "origin": "Tractor Rear Axle Center"
+            },
+            "homography_matrix_pixel_to_vcs": self.H.tolist(),
+            "homography_matrix_vcs_to_pixel": self.H_inv.tolist(),
+            "points_image_pixel": self.pts_image,
+            "points_world_vcs_meter": self.pts_world,
+            "reprojection_error_meters": self.reprojection_error,
+            "image_shape": list(self.image_shape) if self.image_shape else None
         }
         if metadata and isinstance(metadata, dict):
             data["metadata"] = metadata
@@ -168,7 +154,7 @@ class HomographyCalibrator:
         target.parent.mkdir(parents=True, exist_ok=True)
         with open(target, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=4, ensure_ascii=False)
-        print(f"[+] Đã lưu cấu hình Homography thành công tại: {target.resolve()}")
+        print(f"[+] Đã lưu cấu hình Homography chuẩn VCS tại: {target.resolve()}")
         return str(target.resolve())
 
     def load_from_json(self, filepath):
@@ -180,13 +166,18 @@ class HomographyCalibrator:
         with open(target, "r", encoding="utf-8") as f:
             data = json.load(f)
 
-        self.H = np.array(data["homography_matrix_pixel_to_meter"], dtype=np.float64)
-        self.H_inv = np.array(data["homography_matrix_meter_to_pixel"], dtype=np.float64)
+        # Hỗ trợ cả key chuẩn mới và key cũ
+        h_key = "homography_matrix_pixel_to_vcs" if "homography_matrix_pixel_to_vcs" in data else "homography_matrix_pixel_to_meter"
+        h_inv_key = "homography_matrix_vcs_to_pixel" if "homography_matrix_vcs_to_pixel" in data else "homography_matrix_meter_to_pixel"
+        pts_w_key = "points_world_vcs_meter" if "points_world_vcs_meter" in data else "points_world_meter"
+
+        self.H = np.array(data[h_key], dtype=np.float64)
+        self.H_inv = np.array(data[h_inv_key], dtype=np.float64)
         self.pts_image = [tuple(p) for p in data.get("points_image_pixel", [])]
-        self.pts_world = [tuple(p) for p in data.get("points_world_meter", [])]
+        self.pts_world = [tuple(p) for p in data.get(pts_w_key, [])]
         self.reprojection_error = float(data.get("reprojection_error_meters", 0.0))
         self.image_shape = tuple(data["image_shape"]) if data.get("image_shape") else None
         self.created_at = data.get("created_at")
-        print(f"[+] Đã nạp thành công ma trận Homography từ: {target.resolve()} (Sai số: {self.reprojection_error:.3f}m)")
+        self.camera_name = data.get("camera_name", "FRONT_CAM")
+        print(f"[+] Đã nạp thành công ma trận Homography VCS từ: {target.resolve()} (Sai số: {self.reprojection_error:.4f}m)")
         return self
-
