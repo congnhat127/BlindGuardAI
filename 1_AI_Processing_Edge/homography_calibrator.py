@@ -41,6 +41,25 @@ class HomographyCalibrator:
     def is_calibrated(self):
         return self.H is not None and self.H.shape == (3, 3)
 
+    @staticmethod
+    def check_collinearity(pts, threshold_px=20.0):
+        """
+        Kiểm tra xem trong 4 điểm có 3 điểm nào gần như thẳng hàng không.
+        Homography bắt buộc 4 điểm phải tạo thành tứ giác lồi, nếu 3 điểm thẳng hàng
+        ma trận sẽ bị suy biến (degenerate) và tính sai lệch lớn ở các vùng bên ngoài.
+        :return: (is_collinear, (i1, i2, i3), dist)
+        """
+        from itertools import combinations
+        for (i1, p1), (i2, p2), (i3, p3) in combinations(enumerate(pts), 3):
+            v13 = np.array(p3) - np.array(p1)
+            v12 = np.array(p2) - np.array(p1)
+            norm = np.linalg.norm(v13)
+            if norm > 1e-5:
+                dist = abs(v13[0]*v12[1] - v13[1]*v12[0]) / norm
+                if dist < threshold_px:
+                    return True, (i1 + 1, i2 + 1, i3 + 1), float(dist)
+        return False, None, 0.0
+
     def compute_homography(self, pts_image, pts_world, image_shape=None, camera_name="FRONT_CAM"):
         """
         Tính toán ma trận Homography từ 4 cặp điểm tương ứng.

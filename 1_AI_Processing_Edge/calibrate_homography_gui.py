@@ -658,6 +658,22 @@ class HomographyCalibratorApp(tk.Tk):
             )
             return
 
+        # Kiểm tra suy biến hình học (3 điểm thẳng hàng)
+        is_collinear, col_indices, col_dist = HomographyCalibrator.check_collinearity(px_pts, threshold_px=25.0)
+        if is_collinear:
+            i1, i2, i3 = col_indices
+            ans = messagebox.askyesno(
+                "Cảnh Báo Suy Biến Hình Học (3 Điểm Thẳng Hàng)",
+                f"⚠️ CẢNH BÁO TOÁN HỌC:\n"
+                f"Mốc #{i1}, #{i2}, #{i3} gần như nằm trên cùng 1 đường thẳng (độ lệch chỉ {col_dist:.1f} pixel)!\n\n"
+                f"Toán học Homography bắt buộc 4 điểm mốc phải là 4 GÓC của một TỨ GIÁC lồi bao phủ mặt phẳng.\n"
+                f"Nếu 3 điểm nằm trên 1 đường thẳng (tạo thành hình tam giác), ma trận H sẽ bị suy biến và tính sai lệch lớn (ví dụ làm tọa độ Y bị ngược dấu từ âm thành dương ở các vùng bên ngoài)!\n\n"
+                f"Bạn có chắc chắn muốn tiếp tục tính với 4 điểm này không?",
+                icon="warning"
+            )
+            if not ans:
+                return
+
         try:
             cam_name = self.cam_var.get().split()[0]
             shape = (self.orig_h, self.orig_w) if self.orig_h > 0 else (1080, 1920)
