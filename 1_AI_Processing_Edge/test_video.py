@@ -35,6 +35,7 @@ import tkinter as tk
 from tkinter import filedialog
 import cv2
 import numpy as np
+from collections import defaultdict
 
 # Thiết lập thư mục
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -137,12 +138,19 @@ def discover_available_models():
                 seen.add(resolved)
                 models.append({"label": label, "path": resolved})
 
+    # 0. Model V3 (Mới nhất bổ sung xe kéo thật fisheye)
+    for p in [
+        SCRIPT_DIR / "object_detection" / "runs" / "yolo11n_blindguard_v3" / "weights" / "best.pt",
+        ROOT_DIR / "1_AI_Processing_Edge" / "object_detection" / "runs" / "yolo11n_blindguard_v3" / "weights" / "best.pt",
+    ]:
+        add_model("Model v3 (Xe keo Fisheye)", p)
+
     # 1. Model V2 (mới nhất từ data/new)
     for p in [
         SCRIPT_DIR / "object_detection" / "runs" / "yolo11n_blindguard_v2" / "weights" / "best.pt",
         ROOT_DIR / "1_AI_Processing_Edge" / "object_detection" / "runs" / "yolo11n_blindguard_v2" / "weights" / "best.pt",
     ]:
-        add_model("Model v2 (Moi)", p)
+        add_model("Model v2 (Cu hon)", p)
 
     # 2. Model V1 (huấn luyện ban đầu)
     for p in [
@@ -238,8 +246,10 @@ def main_app(model_path=None, conf_thres=0.35, iou_thres=0.45):
         mp = Path(model_path).resolve()
         if mp.is_file():
             lbl = mp.stem
-            if "v2" in str(mp).lower():
-                lbl = "Model v2 (Moi)"
+            if "v3" in str(mp).lower():
+                lbl = "Model v3 (Xe keo Fisheye)"
+            elif "v2" in str(mp).lower():
+                lbl = "Model v2 (Cu hon)"
             elif "v1" in str(mp).lower():
                 lbl = "Model v1 (Cu)"
             available_models.insert(0, {"label": lbl, "path": str(mp)})
@@ -271,10 +281,39 @@ def main_app(model_path=None, conf_thres=0.35, iou_thres=0.45):
         print(f"[Error] Lỗi nạp mô hình ban đầu: {e}")
         return
 
-    # Chế độ lọc class (True = chỉ nhận diện 6 class giao thông chuẩn, False = tất cả class của model)
-    filter_6_classes = True
+    # Chế độ Tracking ByteTrack (True = BẬT ByteTrack theo dõi liên tục + làm mượt box, False = Single-frame)
+    use_tracking = True
+    tracker_yaml = str((SCRIPT_DIR / "mot_tracking" / "bytetrack_fisheye.yaml").resolve())
+    if not Path(tracker_yaml).exists():
+        tracker_yaml = "bytetrack.yaml"
 
-    # Toast thông báo trên giao diện khi đổi model / filter
+    # Bộ đệm làm mượt box (EMA), vệt quỹ đạo (Trail), dự đoán vận tốc và chống nhấp nháy
+    smoothed_boxes = {}       # track_id -> np.array([x1, y1, x2, y2], dtype=float)
+    track_velocities = {}     # track_id -> np.array([vx1, vy1, vx2, vy2], dtype=float)
+    track_trails = {}         # track_id -> list of (center_x, bottom_y)
+    track_last_seen = {}      # track_id -> frame_idx
+    track_class_scores = {}   # track_id -> defaultdict(float) điểm tích lũy class để chống nhấp nháy nhãn
+    track_last_conf = {}      # track_id -> float
+    frame_counter = 0
+
+    def reset_tracking_state():
+        nonlocal smoothed_boxes, track_velocities, track_trails, track_last_seen, track_class_scores, track_last_conf, frame_counter
+        smoothed_boxes.clear()
+        track_velocities.clear()
+        track_trails.clear()
+        track_last_seen.clear()
+        track_class_scores.clear()
+        track_last_conf.clear()
+        frame_counter = 0
+        if hasattr(model, 'predictor') and model.predictor is not None:
+            if hasattr(model.predictor, 'trackers'):
+                for t in model.predictor.trackers:
+                    try:
+                        t.reset()
+                    except Exception:
+                        pass
+
+    # Toast thông báo trên giao diện khi đổi model / tracking
     toast_msg = f"Đã nạp: {curr_info['label']}"
     toast_time = time.time() + 2.5
 
@@ -286,6 +325,7 @@ def main_app(model_path=None, conf_thres=0.35, iou_thres=0.45):
             try:
                 print(f"[*] Đang chuyển sang mô hình: {target['label']} ({target['path']})")
                 model = YOLO(target['path'])
+                reset_tracking_state()
                 toast_msg = f"Da doi: {target['label']}"
                 toast_time = time.time() + 2.5
                 print(f"[+] Đổi thành công: {target['label']} ({len(model.names)} classes)")
@@ -296,13 +336,14 @@ def main_app(model_path=None, conf_thres=0.35, iou_thres=0.45):
         else:
             browse_and_add_model()
 
-    def toggle_filter_mode():
-        nonlocal filter_6_classes, toast_msg, toast_time
-        filter_6_classes = not filter_6_classes
-        status = "Loc 6 Class Chuan" if filter_6_classes else "Hien thi Tat ca Class"
-        toast_msg = f"Che do: {status}"
+    def toggle_tracking_mode():
+        nonlocal use_tracking, toast_msg, toast_time
+        use_tracking = not use_tracking
+        reset_tracking_state()
+        status = "BAT (ByteTrack + Smoothing)" if use_tracking else "TAT (Single-frame)"
+        toast_msg = f"Tracking: {status}"
         toast_time = time.time() + 2.0
-        print(f"[*] Chế độ nhận diện: {status}")
+        print(f"[*] Chế độ Tracking: {status}")
 
     def browse_and_add_model():
         nonlocal current_model_idx, model, toast_msg, toast_time
@@ -321,8 +362,10 @@ def main_app(model_path=None, conf_thres=0.35, iou_thres=0.45):
                         toast_time = time.time() + 3.0
                     return
             lbl = Path(chosen).stem
-            if "v2" in resolved.lower():
-                lbl = "Model v2 (Moi)"
+            if "v3" in resolved.lower():
+                lbl = "Model v3 (Xe keo Fisheye)"
+            elif "v2" in resolved.lower():
+                lbl = "Model v2 (Cu hon)"
             elif "v1" in resolved.lower():
                 lbl = "Model v1 (Cu)"
             available_models.append({"label": lbl, "path": resolved})
@@ -390,8 +433,8 @@ def main_app(model_path=None, conf_thres=0.35, iou_thres=0.45):
             
             m_path = available_models[current_model_idx]["path"]
             m_path_short = ("..." + m_path[-42:]) if len(m_path) > 45 else m_path
-            mode_desc = "Loc 6 Class Giao Thong" if (model_is_coco or filter_6_classes) else "Tat ca 8 Class"
-            cv2.putText(start_canvas, f"Model: {curr_label}  |  Che do: {mode_desc}", (bx1 + 15, by1 + 22),
+            mode_desc = "Theo doi: ByteTrack (ON)" if use_tracking else "Nhan dien: Tinh (OFF)"
+            cv2.putText(start_canvas, f"Model: {curr_label}  |  {mode_desc}", (bx1 + 15, by1 + 22),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.52, (0, 255, 200), 1, cv2.LINE_AA)
             cv2.putText(start_canvas, f"Tap tin: {m_path_short}", (bx1 + 15, by1 + 44),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.40, (180, 180, 190), 1, cv2.LINE_AA)
@@ -415,12 +458,14 @@ def main_app(model_path=None, conf_thres=0.35, iou_thres=0.45):
                                     hover_model, bg_color=(90, 35, 130), hover_color=(135, 55, 195),
                                     text_color=(255, 255, 255))
 
-            # Nút 3: [ 🎯 BỘ LỌC CLASS: 6 CLASS / 8 CLASS ]
-            filter_btn_txt = "Che do: Loc 6 Class Giao Thong (person, car, moto...)" if filter_6_classes else "Che do: Nhan dien Day du Tat ca 8 Class"
-            btn_filter_rect = (btn_bx1, app_h // 2 + 84, btn_bx2, app_h // 2 + 122)
-            hover_filter = is_point_in_rect(mouse_pos, btn_filter_rect)
-            draw_interactive_button(start_canvas, btn_filter_rect, filter_btn_txt, hover_filter,
-                                    bg_color=(25, 75, 75), hover_color=(35, 110, 110), text_color=(0, 255, 220))
+            # Nút 3: [ 🛰️ CHẾ ĐỘ TRACKING: BYTETRACK BẬT / TẮT ]
+            track_btn_txt = "Tracking: [ BAT ] (ByteTrack + Khu giat)" if use_tracking else "Tracking: [ TAT ] (Nhan dien Tinh)"
+            btn_track_rect = (btn_bx1, app_h // 2 + 84, btn_bx2, app_h // 2 + 122)
+            hover_track = is_point_in_rect(mouse_pos, btn_track_rect)
+            draw_interactive_button(start_canvas, btn_track_rect, track_btn_txt, hover_track,
+                                    bg_color=(25, 75, 75) if use_tracking else (50, 50, 50),
+                                    hover_color=(35, 110, 110) if use_tracking else (70, 70, 70),
+                                    text_color=(0, 255, 220) if use_tracking else (180, 180, 180))
 
             # Nút 4: [ 📁 Duyệt file .pt khác ]
             btn_browse_rect = (btn_bx1, app_h // 2 + 130, btn_bx2, app_h // 2 + 166)
@@ -436,8 +481,8 @@ def main_app(model_path=None, conf_thres=0.35, iou_thres=0.45):
                                     hover_exit, bg_color=(50, 30, 30), hover_color=(120, 40, 40), text_color=(200, 200, 200))
 
             # Hướng dẫn phím tắt dưới đáy
-            cv2.putText(start_canvas, "Phim tat: [Enter/O] Chon Video  |  [M] Doi Model  |  [F] Loc 6/8 Class  |  [B] Duyet .pt  |  [Q] Thoat",
-                        (app_w // 2 - 320, app_h - 16), cv2.FONT_HERSHEY_SIMPLEX, 0.44, (140, 140, 140), 1, cv2.LINE_AA)
+            cv2.putText(start_canvas, "Phim tat: [Enter/O] Chon Video  |  [M] Doi Model  |  [T] Tracking BAT/TAT  |  [B] Duyet .pt  |  [Q] Thoat",
+                        (app_w // 2 - 330, app_h - 16), cv2.FONT_HERSHEY_SIMPLEX, 0.44, (140, 140, 140), 1, cv2.LINE_AA)
 
             cv2.imshow(window_name, start_canvas)
             key = cv2.waitKey(20) & 0xFF
@@ -458,8 +503,8 @@ def main_app(model_path=None, conf_thres=0.35, iou_thres=0.45):
                             last_frame_timestamp = time.time()
                 elif hover_model:
                     switch_to_next_model()
-                elif hover_filter:
-                    toggle_filter_mode()
+                elif hover_track:
+                    toggle_tracking_mode()
                 elif hover_browse:
                     browse_and_add_model()
                 elif hover_exit:
@@ -469,8 +514,8 @@ def main_app(model_path=None, conf_thres=0.35, iou_thres=0.45):
                 break
             elif key in [ord('m'), ord('M')]:
                 switch_to_next_model()
-            elif key in [ord('f'), ord('F')]:
-                toggle_filter_mode()
+            elif key in [ord('t'), ord('T')]:
+                toggle_tracking_mode()
             elif key in [ord('b'), ord('B')]:
                 browse_and_add_model()
             elif key in [ord('o'), ord('O'), 13]:
@@ -499,55 +544,164 @@ def main_app(model_path=None, conf_thres=0.35, iou_thres=0.45):
 
                 current_frame = cv2.resize(frame, (app_w, app_h), interpolation=cv2.INTER_LINEAR)
 
-                # Xác định danh sách class cần nhận diện
-                predict_classes = None
-                if model_is_coco:
-                    # MÔ HÌNH GỐC COCO: Chỉ lọc ra đúng 6 class giao thông chuẩn, loại bỏ toàn bộ 74 class còn lại
-                    predict_classes = COCO_TRAFFIC_IDS
-                elif filter_6_classes:
-                    # Custom model ở chế độ lọc 6 class: loại bỏ xe_keo và xich_lo
-                    predict_classes = [i for i, name in model.names.items() if name not in ['xe_keo', 'xich_lo']]
+                frame_counter += 1
 
-                # Dự đoán với mô hình YOLO hiện tại
-                results = model.predict(
-                    source=current_frame,
-                    conf=conf_thres,
-                    iou=iou_thres,
-                    classes=predict_classes,
-                    device=0 if cv2.cuda.getCudaEnabledDeviceCount() > 0 else "0",
-                    verbose=False
-                )
+                # Xác định danh sách class cần nhận diện (nếu dùng model COCO gốc 80 class thì chỉ lấy 6 class giao thông)
+                predict_classes = COCO_TRAFFIC_IDS if model_is_coco else None
+
+                # Thực hiện suy luận (ByteTrack Tracking hoặc Single-frame Detection)
+                if use_tracking:
+                    # Truyền conf=0.12 vào model.track() để ByteTrack kích hoạt trọn vẹn Stage 2 (cứu box mờ / méo mắt cá)
+                    # File bytetrack_fisheye.yaml sẽ quản lý việc chỉ cấp ID mới khi conf >= 0.40 (tránh sinh track rác)
+                    results = model.track(
+                        source=current_frame,
+                        tracker=tracker_yaml,
+                        conf=0.12,
+                        iou=iou_thres,
+                        classes=predict_classes,
+                        persist=True,
+                        device=0 if cv2.cuda.getCudaEnabledDeviceCount() > 0 else "0",
+                        verbose=False
+                    )
+                else:
+                    results = model.predict(
+                        source=current_frame,
+                        conf=conf_thres,
+                        iou=iou_thres,
+                        classes=predict_classes,
+                        device=0 if cv2.cuda.getCudaEnabledDeviceCount() > 0 else "0",
+                        verbose=False
+                    )
 
                 detected_counts = {}
+                active_track_ids = set()
+
                 for r in results:
-                    for box in r.boxes:
+                    boxes = r.boxes
+                    has_id = (boxes.id is not None) if use_tracking else False
+
+                    for idx_b, box in enumerate(boxes):
                         cls_id = int(box.cls[0].item())
                         conf = float(box.conf[0].item())
 
-                        # Lấy tên class CHÍNH XÁC từ model.names của mô hình đang chạy
+                        # Lấy tên class CHÍNH XÁC từ model.names
                         cname = model.names.get(cls_id, f"cls_{cls_id}")
 
-                        # Lọc an toàn cho mô hình COCO (chỉ giữ 6 class giao thông)
+                        # Lọc an toàn cho mô hình COCO (chỉ giữ 6 class giao thông chuẩn)
                         if model_is_coco and cname not in STANDARD_6_CLASSES:
                             continue
-                        # Lọc nếu người dùng chỉ bật 6 class
-                        if filter_6_classes and cname in ['xe_keo', 'xich_lo']:
+
+                        xyxy_raw = box.xyxy[0].cpu().numpy().astype(float)
+
+                        # Bỏ qua box bất thường che kín > 85% diện tích màn hình (ví dụ người đứng bám sát mắt cá camera)
+                        bw = xyxy_raw[2] - xyxy_raw[0]
+                        bh = xyxy_raw[3] - xyxy_raw[1]
+                        if (bw * bh) > 0.85 * (app_w * app_h):
                             continue
 
-                        detected_counts[cname] = detected_counts.get(cname, 0) + 1
+                        track_id = int(boxes.id[idx_b].item()) if (has_id and idx_b < len(boxes.id)) else None
 
-                        xyxy = box.xyxy[0].cpu().numpy().astype(int)
-                        x1, y1, x2, y2 = xyxy
-                        color = CLASS_COLORS.get(cname, (0, 255, 120))
-                        thick = 3 if cname in ['xe_keo', 'xich_lo'] else 2
+                        if track_id is not None:
+                            active_track_ids.add(track_id)
+                            track_last_seen[track_id] = frame_counter
+                            track_last_conf[track_id] = conf
+
+                            # Tích lũy điểm phân loại (Class Voting) để triệt tiêu hiện tượng nhấp nháy nhãn (ví dụ xe kéo <-> người)
+                            if track_id not in track_class_scores:
+                                track_class_scores[track_id] = defaultdict(float)
+                            track_class_scores[track_id][cname] += conf
+                            stable_cname = max(track_class_scores[track_id].items(), key=lambda x: x[1])[0]
+
+                            # Tính vận tốc chuyển động & làm mượt tọa độ Box (EMA Smoothing - alpha=0.65)
+                            if track_id in smoothed_boxes:
+                                old_box = smoothed_boxes[track_id]
+                                xyxy_smooth = 0.65 * xyxy_raw + 0.35 * old_box
+                                track_velocities[track_id] = 0.6 * track_velocities.get(track_id, np.zeros(4)) + 0.4 * (xyxy_smooth - old_box)
+                            else:
+                                xyxy_smooth = xyxy_raw
+                                track_velocities[track_id] = np.zeros(4)
+                            smoothed_boxes[track_id] = xyxy_smooth
+                            x1, y1, x2, y2 = xyxy_smooth.astype(int)
+
+                            # Cập nhật vệt quỹ đạo di chuyển (Trajectory Trail)
+                            bot_center = ((x1 + x2) // 2, y2)
+                            if track_id not in track_trails:
+                                track_trails[track_id] = []
+                            track_trails[track_id].append(bot_center)
+                            if len(track_trails[track_id]) > 20:
+                                track_trails[track_id].pop(0)
+
+                            detected_counts[stable_cname] = detected_counts.get(stable_cname, 0) + 1
+                            label_str = f"#{track_id} {stable_cname} {conf:.2f}"
+                            display_cname = stable_cname
+                        else:
+                            x1, y1, x2, y2 = xyxy_raw.astype(int)
+                            label_str = f"{cname} {conf:.2f}"
+                            display_cname = cname
+                            detected_counts[cname] = detected_counts.get(cname, 0) + 1
+
+                        color = CLASS_COLORS.get(display_cname, (0, 255, 120))
+                        thick = 3 if display_cname in ['xe_keo', 'xich_lo'] else 2
                         cv2.rectangle(current_frame, (x1, y1), (x2, y2), color, thick)
 
-                        label_str = f"{cname} {conf:.2f}"
-                        (tw, th), _ = cv2.getTextSize(label_str, cv2.FONT_HERSHEY_DUPLEX, 0.50, 1)
+                        (tw, th), _ = cv2.getTextSize(label_str, cv2.FONT_HERSHEY_DUPLEX, 0.48, 1)
                         label_y1 = max(y1 - th - 8, 50)
                         cv2.rectangle(current_frame, (x1, label_y1), (x1 + tw + 6, label_y1 + th + 6), color, -1)
                         cv2.putText(current_frame, label_str, (x1 + 3, label_y1 + th + 1),
-                                    cv2.FONT_HERSHEY_DUPLEX, 0.50, (0, 0, 0), 1, cv2.LINE_AA)
+                                    cv2.FONT_HERSHEY_DUPLEX, 0.48, (0, 0, 0), 1, cv2.LINE_AA)
+
+                # Duy trì Track Coasting (giữ box khi ByteTrack/YOLO tạm thời mất dấu 1-5 frames do chớp sáng hoặc che khuất)
+                if use_tracking:
+                    MAX_COAST_FRAMES = 5  # ~0.16 giây ở 30 FPS
+                    for tid, last_f in list(track_last_seen.items()):
+                        missed_frames = frame_counter - last_f
+                        if tid not in active_track_ids and 1 <= missed_frames <= MAX_COAST_FRAMES:
+                            if tid in smoothed_boxes and tid in track_class_scores:
+                                # Dự đoán vị trí tiếp tục theo vận tốc
+                                vel = track_velocities.get(tid, np.zeros(4))
+                                smoothed_boxes[tid] = smoothed_boxes[tid] + vel * 0.7
+                                x1, y1, x2, y2 = smoothed_boxes[tid].astype(int)
+                                x1, y1 = max(0, x1), max(0, y1)
+                                x2, y2 = min(app_w - 1, x2), min(app_h - 1, y2)
+
+                                stable_cname = max(track_class_scores[tid].items(), key=lambda x: x[1])[0]
+                                detected_counts[stable_cname] = detected_counts.get(stable_cname, 0) + 1
+                                last_conf = track_last_conf.get(tid, 0.3)
+                                label_str = f"#{tid} {stable_cname} ~{last_conf:.2f}"
+                                color = CLASS_COLORS.get(stable_cname, (0, 255, 120))
+
+                                # Vẽ viền nhẹ nhàng (thickness=2)
+                                cv2.rectangle(current_frame, (x1, y1), (x2, y2), color, 2, cv2.LINE_AA)
+
+                                (tw, th), _ = cv2.getTextSize(label_str, cv2.FONT_HERSHEY_DUPLEX, 0.44, 1)
+                                label_y1 = max(y1 - th - 6, 50)
+                                cv2.rectangle(current_frame, (x1, label_y1), (x1 + tw + 6, label_y1 + th + 6), (50, 50, 50), -1)
+                                cv2.putText(current_frame, label_str, (x1 + 3, label_y1 + th),
+                                            cv2.FONT_HERSHEY_DUPLEX, 0.44, (200, 255, 200), 1, cv2.LINE_AA)
+
+                                # Cập nhật vệt di chuyển
+                                bot_center = ((x1 + x2) // 2, y2)
+                                if tid in track_trails:
+                                    track_trails[tid].append(bot_center)
+                                    if len(track_trails[tid]) > 20:
+                                        track_trails[tid].pop(0)
+
+                    # Vẽ vệt quỹ đạo di chuyển (Trajectory Trail) cho các xe đang theo dõi (kể cả đang coasting)
+                    for tid, trail in list(track_trails.items()):
+                        if (tid in active_track_ids or (frame_counter - track_last_seen.get(tid, 0) <= MAX_COAST_FRAMES)) and len(trail) > 1:
+                            for j in range(1, len(trail)):
+                                trail_thick = max(1, int(1 + 2.5 * (j / len(trail))))
+                                cv2.line(current_frame, trail[j - 1], trail[j], (0, 255, 255), trail_thick, cv2.LINE_AA)
+
+                    # Dọn dẹp bộ đệm khi track_id biến mất quá 60 frames (~2.0s đồng bộ với track_buffer của ByteTrack)
+                    stale_ids = [tid for tid, last_f in track_last_seen.items() if frame_counter - last_f > 60]
+                    for tid in stale_ids:
+                        smoothed_boxes.pop(tid, None)
+                        track_velocities.pop(tid, None)
+                        track_trails.pop(tid, None)
+                        track_last_seen.pop(tid, None)
+                        track_class_scores.pop(tid, None)
+                        track_last_conf.pop(tid, None)
 
             # Giao diện Top Bar
             display_img = current_frame.copy()
@@ -569,12 +723,12 @@ def main_app(model_path=None, conf_thres=0.35, iou_thres=0.45):
                 btn_pause_rect = (app_w - 94, 6, app_w - 44, 40)
                 btn_speed_rect = (app_w - 150, 6, app_w - 100, 40)
                 btn_change_rect = (app_w - 212, 6, app_w - 156, 40)
-                btn_filter_rect = (app_w - 288, 6, app_w - 218, 40)
-                btn_model_rect = (app_w - 386, 6, app_w - 294, 40)
+                btn_track_rect = (app_w - 296, 6, app_w - 218, 40)
+                btn_model_rect = (app_w - 396, 6, app_w - 302, 40)
 
                 pause_label = "Tiep" if state == "PAUSED" else "Pause"
                 change_label = "Vid"
-                filter_label = "6 cls" if (model_is_coco or filter_6_classes) else "8 cls"
+                track_label = "Track" if use_tracking else "NoTrack"
                 model_btn_txt = f"{curr_label[:8]}"
             else:
                 cv2.putText(display_img, f"BlindGuard AI | {vname}", (14, 28),
@@ -587,26 +741,28 @@ def main_app(model_path=None, conf_thres=0.35, iou_thres=0.45):
                 btn_pause_rect = (app_w - 134, 6, app_w - 50, 40)
                 btn_speed_rect = (app_w - 202, 6, app_w - 140, 40)
                 btn_change_rect = (app_w - 298, 6, app_w - 208, 40)
-                btn_filter_rect = (app_w - 402, 6, app_w - 304, 40)
-                btn_model_rect = (app_w - 564, 6, app_w - 408, 40)
+                btn_track_rect = (app_w - 424, 6, app_w - 304, 40)
+                btn_model_rect = (app_w - 580, 6, app_w - 430, 40)
 
                 pause_label = "Tiep tuc" if state == "PAUSED" else "Tam dung"
                 change_label = "Doi Video"
-                filter_label = "Loc: 6 Class" if (model_is_coco or filter_6_classes) else "Loc: 8 Class"
+                track_label = "Tracking: ByteTrack" if use_tracking else "Tracking: OFF"
                 model_btn_txt = f"Model: {curr_label}"
 
             hover_close = is_point_in_rect(mouse_pos, btn_close_rect)
             hover_pause = is_point_in_rect(mouse_pos, btn_pause_rect)
             hover_speed = is_point_in_rect(mouse_pos, btn_speed_rect)
             hover_change = is_point_in_rect(mouse_pos, btn_change_rect)
-            hover_filter = is_point_in_rect(mouse_pos, btn_filter_rect)
+            hover_track = is_point_in_rect(mouse_pos, btn_track_rect)
             hover_model = is_point_in_rect(mouse_pos, btn_model_rect)
 
             # Vẽ các nút điều khiển trên Top Bar
             draw_interactive_button(display_img, btn_model_rect, model_btn_txt, hover_model,
                                     bg_color=(95, 35, 140), hover_color=(145, 55, 205), text_color=(255, 255, 255))
-            draw_interactive_button(display_img, btn_filter_rect, filter_label, hover_filter,
-                                    bg_color=(25, 75, 75), hover_color=(35, 115, 115), text_color=(0, 255, 220))
+            draw_interactive_button(display_img, btn_track_rect, track_label, hover_track,
+                                    bg_color=(25, 75, 75) if use_tracking else (50, 50, 50),
+                                    hover_color=(35, 115, 115) if use_tracking else (75, 75, 75),
+                                    text_color=(0, 255, 220) if use_tracking else (180, 180, 180))
             draw_interactive_button(display_img, btn_change_rect, change_label, hover_change,
                                     bg_color=(35, 75, 140), hover_color=(45, 110, 200))
             draw_interactive_button(display_img, btn_speed_rect, speed_label, hover_speed,
@@ -620,7 +776,7 @@ def main_app(model_path=None, conf_thres=0.35, iou_thres=0.45):
             if time.time() < toast_time:
                 toast_bar_h = 30
                 cv2.rectangle(display_img, (0, top_bar_h), (app_w, top_bar_h + toast_bar_h), (110, 40, 160), -1)
-                cv2.putText(display_img, f"[*] {toast_msg}  (Nhan M doi model, F doi loc)", (16, top_bar_h + 20),
+                cv2.putText(display_img, f"[*] {toast_msg}  (Nhan M doi model, T doi tracking)", (16, top_bar_h + 20),
                             cv2.FONT_HERSHEY_DUPLEX, 0.48, (255, 255, 255), 1, cv2.LINE_AA)
 
             # Sub-bar thống kê các đối tượng nhận diện
@@ -639,9 +795,9 @@ def main_app(model_path=None, conf_thres=0.35, iou_thres=0.45):
             bot_h = 24
             cv2.rectangle(display_img, (0, app_h - bot_h), (app_w, app_h), (15, 15, 15), -1)
             if is_compact:
-                bot_text = f"[M] Model | [F] Loc 6/8 cls | [SPACE] Pause | [T] ({current_speed}x) | [R] Vid | [Q] Thoat"
+                bot_text = f"[M] Model | [T] Track ON/OFF | [SPACE] Pause | [[]/[]] ({current_speed}x) | [R] Vid | [Q] Thoat"
             else:
-                bot_text = f"Phim: [M] Doi Model  |  [F] Loc 6/8 Class  |  [B] Duyet .pt  |  [SPACE] Tam dung  |  [T] Toc do ({current_speed}x)  |  [R] Doi Video  |  [S] Chup  |  [Q] Thoat"
+                bot_text = f"Phim: [M] Doi Model  |  [T] Tracking BAT/TAT  |  [B] Duyet .pt  |  [SPACE] Tam dung  |  [[]/[]] Toc do ({current_speed}x)  |  [R] Doi Video  |  [S] Chup  |  [Q] Thoat"
             cv2.putText(display_img, bot_text, (12, app_h - 7),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.40, (180, 180, 180), 1, cv2.LINE_AA)
 
@@ -673,8 +829,8 @@ def main_app(model_path=None, conf_thres=0.35, iou_thres=0.45):
                 mouse_clicked = False
                 if hover_model:
                     switch_to_next_model()
-                elif hover_filter:
-                    toggle_filter_mode()
+                elif hover_track:
+                    toggle_tracking_mode()
                 elif hover_change:
                     vid = choose_video_dialog()
                     if vid:
@@ -688,6 +844,7 @@ def main_app(model_path=None, conf_thres=0.35, iou_thres=0.45):
                             fps_list = []
                             avg_fps = video_fps
                             detected_counts = {}
+                            reset_tracking_state()
                             last_frame_timestamp = time.time()
                 elif hover_speed:
                     speed_idx = (speed_idx + 1) % len(SPEED_PRESETS)
@@ -707,8 +864,8 @@ def main_app(model_path=None, conf_thres=0.35, iou_thres=0.45):
                 return
             elif key in [ord('m'), ord('M')]:
                 switch_to_next_model()
-            elif key in [ord('f'), ord('F')]:
-                toggle_filter_mode()
+            elif key in [ord('t'), ord('T')]:
+                toggle_tracking_mode()
             elif key in [ord('b'), ord('B')]:
                 browse_and_add_model()
             elif key in [ord('r'), ord('R'), ord('c'), ord('C')]:
@@ -724,10 +881,8 @@ def main_app(model_path=None, conf_thres=0.35, iou_thres=0.45):
                         fps_list = []
                         avg_fps = video_fps
                         detected_counts = {}
+                        reset_tracking_state()
                         last_frame_timestamp = time.time()
-            elif key in [ord('t'), ord('T')]:
-                speed_idx = (speed_idx + 1) % len(SPEED_PRESETS)
-                current_speed = SPEED_PRESETS[speed_idx]
             elif key in [ord('['), ord('-')]:
                 speed_idx = max(0, speed_idx - 1)
                 current_speed = SPEED_PRESETS[speed_idx]
@@ -765,8 +920,8 @@ def main_app(model_path=None, conf_thres=0.35, iou_thres=0.45):
 
             cv2.putText(end_canvas, "VIDEO DA CHIEU XONG!", (cx1 + 45, cy1 + 38),
                         cv2.FONT_HERSHEY_DUPLEX, 0.85, (0, 255, 255), 2, cv2.LINE_AA)
-            mode_desc = "Loc 6 Class" if (model_is_coco or filter_6_classes) else "Tat ca 8 Class"
-            cv2.putText(end_canvas, f"Model: {curr_label}  |  Che do: {mode_desc}", (cx1 + 45, cy1 + 62),
+            mode_desc = "Theo doi: ByteTrack (ON)" if use_tracking else "Nhan dien Tinh (OFF)"
+            cv2.putText(end_canvas, f"Model: {curr_label}  |  {mode_desc}", (cx1 + 45, cy1 + 62),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.48, (0, 255, 200), 1, cv2.LINE_AA)
 
             # Nút 1: [ 📂 CHỌN VIDEO LẠI / ĐỔI VIDEO ]
@@ -783,12 +938,14 @@ def main_app(model_path=None, conf_thres=0.35, iou_thres=0.45):
             draw_interactive_button(end_canvas, btn2_rect, f"[ DOI MODEL: Chuyen sang {next_label} ]", hover_btn2,
                                     bg_color=(90, 35, 130), hover_color=(140, 55, 200), text_color=(255, 255, 255))
 
-            # Nút 3: [ 🎯 ĐỔI BỘ LỌC 6/8 CLASS ]
-            filter_btn_txt = "Che do: Loc 6 Class" if filter_6_classes else "Che do: Tat ca 8 Class"
-            btn_filter_end = (cx1 + 30, cy1 + 176, cx2 - 30, cy1 + 214)
-            hover_filter_end = is_point_in_rect(mouse_pos, btn_filter_end)
-            draw_interactive_button(end_canvas, btn_filter_end, filter_btn_txt, hover_filter_end,
-                                    bg_color=(25, 75, 75), hover_color=(35, 110, 110), text_color=(0, 255, 220))
+            # Nút 3: [ 🛰️ TRACKING BYTETRACK BẬT / TẮT ]
+            track_end_txt = "Tracking: [ BAT ] (ByteTrack)" if use_tracking else "Tracking: [ TAT ] (Nhan dien Tinh)"
+            btn_track_end = (cx1 + 30, cy1 + 176, cx2 - 30, cy1 + 214)
+            hover_track_end = is_point_in_rect(mouse_pos, btn_track_end)
+            draw_interactive_button(end_canvas, btn_track_end, track_end_txt, hover_track_end,
+                                    bg_color=(25, 75, 75) if use_tracking else (50, 50, 50),
+                                    hover_color=(35, 110, 110) if use_tracking else (75, 75, 75),
+                                    text_color=(0, 255, 220) if use_tracking else (180, 180, 180))
 
             # Nút 4: [ 🔁 Phát lại ]
             btn3_rect = (cx1 + 30, cy1 + 222, cx1 + (card_w // 2) - 10, cy1 + 258)
@@ -820,24 +977,27 @@ def main_app(model_path=None, conf_thres=0.35, iou_thres=0.45):
                             fps_list = []
                             avg_fps = video_fps
                             detected_counts = {}
+                            reset_tracking_state()
                             last_frame_timestamp = time.time()
                 elif hover_btn2:
                     switch_to_next_model()
-                elif hover_filter_end:
-                    toggle_filter_mode()
+                elif hover_track_end:
+                    toggle_tracking_mode()
                 elif hover_btn3:
                     cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
                     state = "PLAYING"
                     fps_list = []
                     avg_fps = video_fps
+                    detected_counts = {}
+                    reset_tracking_state()
                     last_frame_timestamp = time.time()
                 elif hover_btn5:
                     break
 
             if key in [ord('m'), ord('M')]:
                 switch_to_next_model()
-            elif key in [ord('f'), ord('F')]:
-                toggle_filter_mode()
+            elif key in [ord('t'), ord('T')]:
+                toggle_tracking_mode()
             elif key in [ord('b'), ord('B')]:
                 browse_and_add_model()
             elif key in [ord('r'), ord('R'), ord('c'), ord('C')]:
