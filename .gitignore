@@ -56,10 +56,12 @@ Thumbs.db
 
 # Mô hình AI & Dữ liệu lớn (Tránh push nhầm lên git)
 *.pt
+!1_AI_Processing_Edge/object_detection/weights/best.pt
 *.onnx
 *.engine
 *.trt
 weights/
+!1_AI_Processing_Edge/object_detection/weights/
 datasets/
 data/
 logs/
@@ -67,5 +69,6 @@ runs/
 *.mp4
 *.avi
 
-# Thư mục chứa dữ liệu tự động trích xuất và gán nhãn
-1_AI_Processing_Edge/pseudo_labeling/pseudo_labeled/
+# Thư mục đầu ra của trình kiểm thử
+outputs/
+
