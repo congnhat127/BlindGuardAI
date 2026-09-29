@@ -5,7 +5,7 @@ tracker_type: bytetrack  # Sử dụng thuật toán ByteTrack
 track_high_thresh: 0.35 # Ngưỡng ghép đôi Vòng 1 cho các box rõ nét
 track_low_thresh: 0.10  # Ngưỡng cứu box Vòng 2 cho xe bị mờ / méo góc mắt cá / bị che khuất
 new_track_thresh: 0.40  # Ngưỡng tối thiểu để cấp Track ID mới (tránh tạo ID rác từ nhiễu)
-track_buffer: 50        # Số frame tối đa lưu vết xe bị mất dấu (50 frames ~ 1.7 giây ở 30 FPS, đủ để người đi bộ băng qua)
+track_buffer: 30        # Số frame tối đa lưu vết xe bị mất dấu (50 frames ~ 1.7 giây ở 30 FPS, đủ để người đi bộ băng qua)
 match_thresh: 0.80      # Ngưỡng chi phí ghép đôi tối đa (IoU >= 0.20 cho phép tái nhận diện sau che khuất)
-fuse_score: False       # Tắt nhân confidence vào IoU để tránh phạt chi phí khi xe vừa lộ ra có confidence trung bình (0.35-0.50)
+fuse_score: true       # Tắt nhân confidence vào IoU để tránh phạt chi phí khi xe vừa lộ ra có confidence trung bình (0.35-0.50)
 
