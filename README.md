@@ -12,5 +12,12 @@ Dự án tham gia cuộc thi "Thiết kế điện tử Việt Nam 2026" (VEDC 2
 - `5_Web_Cloud_Dashboard/`: Web quản trị đám mây và Backend API cho dữ liệu lưu trữ sự kiện suýt va chạm.
 - `6_Docs_and_References/`: Tài liệu dự án, cấu trúc giải pháp và quy trình làm việc.
 
+## 🚀 Lệnh chạy nhanh (Quick Start)
+
+Chạy hệ thống kiểm thử Object Detection & ByteTrack Tracking:
+```bash
+python 1_AI_Processing_Edge/object_detection/test_video.py
+```
+
 ## Quy trình làm việc (Git Workflow)
 Vui lòng tham khảo tài liệu trong `6_Docs_and_References/05_git_workflow_guidelines` để nắm rõ quy trình commit và push code của nhóm.
