@@ -2,7 +2,7 @@
 
 > **Phân hệ 2: Tính toán Chỉ số Rủi ro Điểm mù Động theo Thời gian thực**  
 > Dự án: **BlindGuard AI** — Giải pháp AI Edge hỗ trợ an toàn điểm mù cho xe tải nặng & xe đầu kéo.  
-> Tuân thủ tiêu chuẩn: **ISO 8855 / SAE J670 (Hệ tọa độ VCS)**, **ISO 15622 (LCDAS)**, **UNECE R151 (BSIS)**, **UNECE R46**.
+> Cơ sở kỹ thuật tham chiếu: **ISO 8855 / SAE J670 (Quy ước trục tọa độ VCS)**; Khái niệm an toàn mở rộng từ **UNECE R46, R151, R158, R159** và **ISO 15623, ISO 22839**.
 
 ---
 
@@ -12,7 +12,7 @@
 3. [Mô hình Toán học & Công thức BSRI](#3-mô-hình-toán-học--công-thức-bsri)
    - [3.1. Rủi ro Không gian (Spatial Risk)](#31-rủi-ro-không-gian-spatial-risk-s_spatial)
    - [3.2. Rủi ro Thời gian & Va chạm (Temporal Risk & TTC)](#32-rủi-ro-thời-gian--va-chạm-temporal-risk--ttc-s_temporal)
-   - [3.3. Trọng số Tổn thương Đối tượng (VRU Severity Weight)](#33-trọng-số-tổn-thương-đối-tượng-vru-severity-weight-w_vru)
+   - [3.3. Hệ số Ưu tiên Nhóm Đối tượng (Class Vulnerability Factor)](#33-hệ-số-ưu-tiên-nhóm-đối-tượng-c_vru)
    - [3.4. Hệ số Điểm mù Quang học (Blind Spot Factor)](#34-hệ-số-điểm-mù-quang-học-blind-spot-factor-v_blind)
    - [3.5. Hệ số Thao tác Xe chủ (Ego Maneuver Factor)](#35-hệ-số-thao-tác-xe-chủ-ego-maneuver-factor-m_ego)
    - [3.6. Công thức Tổng hợp BSRI Chuẩn hóa](#36-công-thức-tổng-hợp-bsri-chuẩn-hóa)
@@ -39,7 +39,7 @@ Kết quả trả về là một chỉ số liên tục $BSRI \in [0.00, 1.00]$,
 
 ## 2. Hệ tọa độ & Quy ước Vật lý (VCS ISO 8855)
 
-Tất cả các đại lượng khoảng cách, vị trí và vận tốc trong BSRI Engine đều tuân thủ **Hệ tọa độ xe (Vehicle Coordinate System - VCS)** theo tiêu chuẩn quốc tế **ISO 8855 / SAE J670**:
+Tất cả các đại lượng khoảng cách, vị trí và vận tốc trong BSRI Engine đều tuân thủ **Hệ tọa độ xe (Vehicle Coordinate System - VCS)** theo quy ước chiều dương chuẩn quốc tế **ISO 8855 / SAE J670**:
 
 ```text
                Y+ (Bên Trái xe)
@@ -58,28 +58,28 @@ Tất cả các đại lượng khoảng cách, vị trí và vận tốc trong 
                Y- (Bên Phải xe - Điểm mù hông phụ)
 ```
 
-* **Gốc tọa độ $(0, 0, 0)$:** Đặt tại tâm trục bánh sau đầu kéo (Rear Axle Center), mặt đường phẳng $Z = 0$.
+* **Gốc tọa độ $(0, 0, 0)$:** Đặt tại tâm trục bánh sau đầu kéo (Rear Axle Center, lựa chọn thiết kế của dự án nhằm triệt tiêu $v_y = 0$ khi quay vòng Ackermann), mặt đường phẳng $Z = 0$.
 * **Trục $X$ (Longitudinal):** Trục dọc thân xe.
   * $X > 0$: Về phía trước mũi xe (đầu cabin).
   * $X < 0$: Về phía sau thân xe (thùng rơ-moóc).
 * **Trục $Y$ (Lateral):** Trục ngang thân xe.
   * $Y > 0$: Bên **Trái** xe (phía hông tài xế ngồi).
   * $Y < 0$: Bên **Phải** xe (phía hông phụ — **điểm mù nguy hiểm nhất**).
-* **Tốc độ góc Yaw Rate $r$ ($rad/s$):**
-  * $r > 0$: Xe đang rẽ trái (ngược chiều kim đồng hồ).
-  * $r < 0$: Xe đang rẽ phải (thuận chiều kim đồng hồ).
+* **Tốc độ góc Yaw Rate $\omega_z$ ($rad/s$):**
+  * $\omega_z > 0$: Xe đang rẽ trái (ngược chiều kim đồng hồ).
+  * $\omega_z < 0$: Xe đang rẽ phải (thuận chiều kim đồng hồ).
 
 ---
 
 ## 3. Mô hình Toán học & Công thức BSRI
 
-Chỉ số rủi ro $BSRI$ của mỗi vật thể $i$ được tổng hợp từ 5 thành phần động học:
+Chỉ số rủi ro $BSRI$ của mỗi vật thể $i$ được tổng hợp từ cơ chế kết hợp lồi rủi ro cơ sở nhân các hệ số điều chỉnh ngữ cảnh (Contextual Risk Modifiers):
 
-$$\mathbf{BSRI} = \text{clip}\left( \Big( w_s \cdot S_{spatial} + w_t \cdot S_{temporal} \Big) \cdot W_{vru} \cdot V_{blind} \cdot M_{ego}, \quad 0.0, \quad 1.0 \right)$$
+$$\mathbf{BSRI} = \text{clip}\left( \Big( w_s \cdot S_{spatial} + w_t \cdot S_{temporal} \Big) \cdot C_{vru} \cdot V_{blind} \cdot M_{ego}, \quad 0.0, \quad 1.0 \right)$$
 
 Trong đó:
-* $w_s = 0.45$ (Trọng số rủi ro không gian).
-* $w_t = 0.55$ (Trọng số rủi ro thời gian / va chạm cận kề).
+* $w_s = 0.45$ (Trọng số rủi ro không gian, Engineering Calibration Parameter).
+* $w_t = 0.55$ (Trọng số rủi ro thời gian / va chạm cận kề, Engineering Calibration Parameter).
 
 ---
 
@@ -91,7 +91,7 @@ Rủi ro không gian phản ánh mức độ áp sát của chướng ngại v�
 * Nếu đối tượng **đã nằm trong $DHZ$**:
   $$S_{spatial} = 1.0$$
 * Nếu đối tượng **ở ngoài $DHZ$** cách đường biên viền một khoảng $d_{DHZ}$ (mét):
-  $$S_{spatial} = \exp\left( - \frac{d_{DHZ}}{d_0} \right) \quad (\text{với } d_0 = 1.8\text{m})$$
+  $$S_{spatial} = \exp\left( - \frac{d_{DHZ}}{d_0} \right) \quad (\text{với } d_0 = 1.8\text{m, Engineering Calibration})$$
   *(Khoảng cách $d_{DHZ} = 0\text{m} \rightarrow 1.0$; tại $1.8\text{m} \rightarrow 0.37$; tại $3.6\text{m} \rightarrow 0.14$; xa hơn $5\text{m} \rightarrow 0.06$)*.
 
 ---
@@ -101,14 +101,14 @@ Rủi ro thời gian trả lời: *Hai vật thể có đang lao vào nhau khôn
 
 1. Tính khoảng cách Euclid thẳng:
    $$R = \sqrt{X^2 + Y^2}$$
-2. Tính **Vận tốc tiếp cận hướng tâm (Closing Velocity)**:
-   $$v_{closing} = - \frac{X \cdot v_{rel,x} + Y \cdot v_{rel,y}}{R} + v_{ego,rel}$$
+2. Tính **Vận tốc tiếp cận hướng tâm (Closing Velocity)** từ vận tốc tương đối Camera VCS:
+   $$v_{closing} = - \frac{X \cdot v_{rel,x} + Y \cdot v_{rel,y}}{R}$$
 3. Nếu $v_{closing} > 0.15\text{ m/s}$ (khoảng cách đang thu hẹp lại):
    * **Thời gian tới va chạm (Time-To-Collision - TTC):**
      $$\text{TTC} = \frac{R}{v_{closing}}$$
-   * Điểm rủi ro thời gian theo tiêu chuẩn ISO 15622:
+   * Điểm rủi ro thời gian theo đường cong suy giảm kỹ thuật (dựa trên thời gian phản xạ người lái và độ trễ phanh khí nén xe tải):
      $$S_{temporal} = \begin{cases} 
-     1.0 & \text{khi } \text{TTC} \le 1.2\text{s} \quad (\text{Cực kỳ khẩn cấp, tài xế không kịp đạp phanh}) \\
+     1.0 & \text{khi } \text{TTC} \le 1.2\text{s} \quad (\text{Khẩn cấp, tài xế không kịp đạp phanh}) \\
      1.0 - 0.70 \times \frac{\text{TTC} - 1.2}{3.5 - 1.2} & \text{khi } 1.2\text{s} < \text{TTC} \le 3.5\text{s} \\
      0.30 \times \exp\left(-\frac{\text{TTC} - 3.5}{3.0}\right) & \text{khi } \text{TTC} > 3.5\text{s}
      \end{cases}$$
@@ -118,31 +118,31 @@ Rủi ro thời gian trả lời: *Hai vật thể có đang lao vào nhau khôn
 
 ---
 
-### 3.3. Trọng số Tổn thương Đối tượng ($W_{vru}$)
-Xe tải nặng có khối lượng từ 15 đến 40 tấn. Mức độ nghiêm trọng của hậu quả phụ thuộc trực tiếp vào loại đối tượng tham gia giao thông:
+### 3.3. Hệ số Ưu tiên Nhóm Đối tượng ($C_{vru}$)
+Phân loại chuẩn hóa theo định nghĩa an toàn giao thông quốc tế (WHO / UNECE / Euro NCAP): **Nhóm không có khung vỏ bảo vệ (VRU)** và **Nhóm phương tiện cơ giới có khung vỏ kín (Enclosed Vehicles)**:
 
-| Loại đối tượng (`class_name`) | Trọng số $W_{vru}$ | Lý do đặc thù |
+| Loại đối tượng (`class_name`) | Hệ số $C_{vru}$ | Phân loại & Cơ sở an toàn kỹ thuật |
 | :--- | :---: | :--- |
-| **`person` (Người đi bộ)** | **`1.00`** | Không có vỏ bọc bảo vệ, tỷ lệ tử vong cao nhất, dễ đổi hướng đột ngột |
-| **`bicycle` (Xe đạp)** | **`0.95`** | Thăng bằng kém, dễ bị chao đảo hoặc ngã vào gầm xe tải |
-| **`xe_keo` (Xe kéo hàng)** | **`0.92`** | Cồng kềnh, không phanh cơ khí, người kéo đi bộ sát lòng đường |
-| **`xich_lo` (Xích lô)** | **`0.90`** | Khung xe dài, người điều khiển ngồi thấp sau khoang chở |
-| **`motorcycle` (Xe máy)** | **`0.85`** | Phương tiện cơ động nhanh, thường xuyên vượt phải trong điểm mù |
-| **`car` (Ô tô con)** | **`0.65`** | Khung vỏ thép bảo vệ, có túi khí |
-| **`truck` / `bus` (Xe lớn khác)** | **`0.60`** | Tương quan khối lượng tương đương |
+| **`person` (Người đi bộ)** | **`1.00`** | **VRU (Không vỏ bọc)**: Nguy cơ tử vong tối đa khi va chạm với xe tải nặng |
+| **`motorcycle` (Xe máy)** | **`1.00`** | **VRU (Không vỏ bọc)**: Nguy cơ sinh mạng tương đương người đi bộ, đối tượng gặp nạn nhiều nhất tại VN |
+| **`bicycle` (Xe đạp)** | **`1.00`** | **VRU (Không vỏ bọc)**: Thăng bằng kém, dễ ngã vào gầm xe |
+| **`xe_keo` (Xe kéo hàng)** | **`1.00`** | **VRU (Không vỏ bọc)**: Cồng kềnh, người kéo đi bộ sát lòng đường |
+| **`xich_lo` (Xích lô)** | **`1.00`** | **VRU (Không vỏ bọc)**: Người điều khiển và hành khách ngồi hở |
+| **`car` (Ô tô con)** | **`0.70`** | **Enclosed**: Có khung thép hấp thụ xung lực, đai an toàn và túi khí bảo vệ |
+| **`truck` / `bus` (Xe lớn khác)** | **`0.60` / `0.65`** | **Heavy**: Khối lượng đối trọng tương đương, sàn xe cao |
 
 ---
 
 ### 3.4. Hệ số Điểm mù Quang học ($V_{blind}$)
-Dựa trên hình học bố trí cabin và gương chiếu hậu theo chuẩn UNECE R46:
+Dựa trên phân vùng góc nhìn gián tiếp qua gương (tham chiếu phân loại gương UNECE R46) và xoay theo góc gập rơ-moóc $\gamma$:
 
 | Phân vùng (`BlindSpotZone`) | Tọa độ VCS ($X, Y$ mét) | Hệ số $V_{blind}$ | Mức độ nguy hiểm |
 | :--- | :---: | :---: | :--- |
-| **`MIRROR_RIGHT` (Hông phụ)** | $X \in [0.5, 4.2], Y \in [-3.5, -1.25]$ | **`1.25`** | **Cao nhất:** Điểm mù gương cầu phụ, tài xế bị che bởi cửa sổ phụ |
-| **`SWEPT_PATH_RIGHT` (Bụng cua phải)** | $X \in [-12.5, 0.5], Y \in [-4.5, -1.25]$ | **`1.25`** | Bị rơ-moóc quét trúng khi xe vào cua phải |
-| **`CAB_FRONT` (Mũi xe gầm cao)** | $X \in [3.6, 5.6], \|Y\| \le 1.8$ | **`1.20`** | Điểm mù trực diện gầm cao (Class VI) khi xe bắt đầu lăn bánh |
-| **`REAR_TRAILER` (Đuôi rơ-moóc)** | $X < -12.0, \|Y\| \le 2.2$ | **`1.20`** | Điểm mù lùi hoàn toàn |
-| **`MIRROR_LEFT` / `SWEPT_PATH_LEFT`** | Phía bên trái xe ($Y > 1.25$) | **`1.10`** | Hông lái (tài xế có thể ngoái đầu nhìn qua cửa kính) |
+| **`MIRROR_RIGHT` (Hông phụ)** | $X \in [d_{hitch}, X_{front}], Y \in [-3.5, -W/2]$ | **`1.25`** | **Cao nhất:** Điểm mù gương cầu phụ, tài xế bị che bởi cửa sổ phụ |
+| **`SWEPT_PATH_RIGHT` (Bụng cua phải)** | $X_{tr} \in [X_{rear}, d_{hitch}], Y_{tr} \in [-4.5, -W/2]$ | **`1.25`** | Vùng vệt quét rơ-moóc ôm cua lấn làn bên phụ |
+| **`CAB_FRONT` (Mũi xe gầm cao)** | $X \in [L_f, X_{front}+2.0], \|Y\| \le W/2+0.8$ | **`1.20`** | Điểm mù trực diện gầm cao (Class VI) khi xe bắt đầu lăn bánh |
+| **`REAR_TRAILER` (Đuôi rơ-moóc)** | $X_{tr} \in [X_{rear}-3.5, X_{rear}], \|Y_{tr}\| \le W/2+1.0$ | **`1.20`** | Điểm mù lùi hoàn toàn phía sau thùng xe |
+| **`MIRROR_LEFT` / `SWEPT_PATH_LEFT`** | Phía bên trái xe ($Y > W/2$) | **`1.10`** | Hông lái (tài xế có thể ngoái đầu nhìn qua cửa kính lái) |
 | **`CLEAR_ZONE` (Vùng thoáng)** | Ngoài các vùng trên | **`0.85`** | Tài xế quan sát trực tiếp dễ dàng |
 
 ---
@@ -150,15 +150,16 @@ Dựa trên hình học bố trí cabin và gương chiếu hậu theo chuẩn U
 ### 3.5. Hệ số Thao tác Xe chủ ($M_{ego}$)
 Hệ thống kết nối trực tiếp với cảm biến góc lái, xi-nhan và gia tốc xe tải:
 
-* **Xe chuẩn bị ép vào đối tượng:**  
-  * Nếu xe đang rẽ phải ($r < -0.03\text{ rad/s}$ hoặc bật xi-nhan phải) **VÀ** đối tượng đang ở bên phải ($Y < 0$):  
-    $$\mathbf{M_{ego} = 1.35}$$ *(Khử triệt để tai nạn lấn lề rơ-moóc)*.
-  * Nếu xe đang rẽ trái ($r > 0.03\text{ rad/s}$ hoặc bật xi-nhan trái) **VÀ** đối tượng ở bên trái ($Y > 0$):  
+* **Xe chuẩn bị rẽ vào phía đối tượng:**  
+  * Nếu xe đang rẽ phải ($\omega_z < -0.03\text{ rad/s}$ hoặc bật xi-nhan phải) **VÀ** đối tượng đang ở bên phải ($Y < 0$):  
+    $$\mathbf{M_{ego} = 1.35}$$
+  * Nếu xe đang rẽ trái ($\omega_z > 0.03\text{ rad/s}$ hoặc bật xi-nhan trái) **VÀ** đối tượng ở bên trái ($Y > 0$):  
     $$\mathbf{M_{ego} = 1.35}$$
 * **Xe đang lùi ($gear = 'R'$ hoặc $v < -0.2\text{ m/s}$) và vật thể ở phía sau ($X < 0$):**  
   $$\mathbf{M_{ego} = 1.40}$$
 * **Xe đang phanh gấp ($a_x < -1.5\text{ m/s}^2$):**  
-  $$M_{ego} = 0.85 \quad (\text{Tài xế đang chủ động triệt tiêu tốc độ})$$
+  * Vật cản phía trước/bên hông ($X \ge 0$): $M_{ego} = 0.85$ *(Tài xế đang chủ động phanh để tránh)*.  
+  * Vật cản phía sau đuôi ($X < 0$): $M_{ego} = 1.25$ *(Phanh gấp làm tăng nguy cơ bị đâm đuôi từ sau)*.
 * **Trạng thái bình thường:**  
   $$M_{ego} = 1.00$$
 

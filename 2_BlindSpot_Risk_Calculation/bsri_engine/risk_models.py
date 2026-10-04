@@ -3,9 +3,9 @@ Module: risk_models.py
 Phân hệ: 2_BlindSpot_Risk_Calculation / bsri_engine
 Mô tả: Định nghĩa các kiểu dữ liệu, Enum và cấu trúc trạng thái phục vụ tính toán
        Chỉ số Rủi ro Điểm mù (Blind-Spot Risk Index - BSRI) cho xe tải hạng nặng.
-Tiêu chuẩn:
-- Hệ tọa độ xe (Vehicle Coordinate System - VCS): ISO 8855 / SAE J670
-- Phân cấp cảnh báo ADAS theo ISO 15622 / UNECE R151 (Blind Spot Information System - BSIS)
+Tiêu chuẩn & Cơ sở kỹ thuật tham chiếu:
+- Quy ước trục tọa độ xe (Vehicle Coordinate System - VCS): ISO 8855 / SAE J670 (Gốc tọa độ tại tâm trục sau là lựa chọn thiết kế của hệ thống)
+- Khái niệm phân cấp cảnh báo ADAS lấy cảm hứng từ ISO 15623, ISO 22839 và UNECE R151 (Blind Spot Information System - BSIS)
 """
 
 from dataclasses import dataclass, field
@@ -42,6 +42,14 @@ class BlindSpotZone(Enum):
     SWEPT_PATH_LEFT = "Bụng cua rơ-moóc trái (Swept Path lấn lề)"
     REAR_TRAILER = "Đuôi rơ-moóc (Điểm mù sau)"
     CLEAR_ZONE = "Vùng thoáng (Ngoài điểm mù)"
+
+
+class VehicleType(Enum):
+    """
+    Kiểu phân loại thân xe: Xe đầu kéo sơ-mi rơ-moóc (ARTICULATED) hoặc Xe tải liền thân (RIGID).
+    """
+    ARTICULATED = "ARTICULATED"
+    RIGID = "RIGID"
 
 
 @dataclass
@@ -94,7 +102,7 @@ class BSRIResult:
     is_in_dhz: bool                             # Có nằm trực tiếp bên trong Vùng Nguy Hiểm Động (DHZ) không
     dist_to_dhz: float                          # Khoảng cách mét tới đường biên viền của DHZ (0.0 nếu nằm trong)
     ttc_seconds: Optional[float]                # Thời gian ước tính tới va chạm Time-To-Collision (giây)
-    vru_weight: float                           # Trọng số tổn thương của loại đối tượng (VRU Severity)
+    vru_weight: float                           # Hệ số ưu tiên nhóm đối tượng C_vru (Class Vulnerability Factor, Engineering Calibration)
     spatial_risk: float                         # Điểm rủi ro không gian (Spatial Proximity Risk)
     temporal_risk: float                        # Điểm rủi ro thời gian (Kinematic TTC Risk)
     maneuver_factor: float                      # Hệ số rủi ro do thao tác của xe chủ (Ego turning/accelerating)

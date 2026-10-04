@@ -9,13 +9,15 @@ from .risk_models import (
     BlindSpotZone,
     EgoVehicleState,
     TrackedObstacle,
-    BSRIResult
+    BSRIResult,
+    VehicleType
 )
 from .bsri_calculator import BSRICalculator
 
 __all__ = [
     "RiskLevel",
     "BlindSpotZone",
+    "VehicleType",
     "EgoVehicleState",
     "TrackedObstacle",
     "BSRIResult",

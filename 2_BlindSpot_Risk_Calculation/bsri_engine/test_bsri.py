@@ -196,6 +196,111 @@ def test_scenario_5_multi_object_scene_evaluation():
     print("  => [PASS] Bộ giải mã ưu tiên hiện trường hoạt động chính xác 100%!")
 
 
+def test_all_5_special_scenarios():
+    """
+    Kiểm thử chuyên sâu toàn diện 5 KỊCH BẢN ĐẶC BIỆT (Gatekeeper Safety Scenarios).
+    """
+    print("\n" + "=" * 75)
+    print(f"{'KIỂM THỬ ĐỘC LẬP 5 KỊCH BẢN GIAO THÔNG ĐẶC BIỆT':^75}")
+    print("=" * 75)
+    calc = BSRICalculator()
+
+    # Case 1: MOIS R159 (Dừng đèn đỏ, VRU sát cản trước)
+    print("\n[CASE 1 - MOIS R159]: Dừng đèn đỏ, xe máy sát mũi cản 0.5m")
+    ego1 = EgoVehicleState(speed_mps=0.0, yaw_rate_rad_s=0.0)
+    # cab_front_x = 4.0m, vật tại x = 4.5m -> cách cản 0.5m
+    obs1 = TrackedObstacle(track_id=101, class_name="motorcycle", confidence=0.9, bbox_xyxy=(0,0,10,10), vcs_x=4.5, vcs_y=0.2)
+    res1 = calc.evaluate_obstacle(obs1, ego1)
+    print(f"  + BSRI: {res1.bsri_score} | Cấp: {res1.risk_level.name} | Giải thích: {res1.explanation}")
+    assert res1.risk_level == RiskLevel.CRITICAL
+    assert "MOIS R159" in res1.explanation
+    print("  => [PASS] Case 1: Bắt chính xác bẫy dừng đèn đỏ khởi hành!")
+
+    # Case 2: BSIS R151 (Bẫy kẹp sườn phải khi xe chuẩn bị rẽ)
+    print("\n[CASE 2 - BSIS R151]: Dừng chờ rẽ, xe máy kẹp sườn phụ")
+    ego2 = EgoVehicleState(speed_mps=1.0, yaw_rate_rad_s=-0.05, turn_signal="RIGHT")
+    obs2 = TrackedObstacle(track_id=102, class_name="motorcycle", confidence=0.88, bbox_xyxy=(0,0,10,10), vcs_x=1.0, vcs_y=-1.8)
+    res2 = calc.evaluate_obstacle(obs2, ego2)
+    print(f"  + BSRI: {res2.bsri_score} | Cấp: {res2.risk_level.name} | Giải thích: {res2.explanation}")
+    assert res2.risk_level == RiskLevel.CRITICAL
+    assert "BẪY KẸP CUA R151" in res2.explanation
+    print("  => [PASS] Case 2: Bắt chính xác bẫy kẹp sườn ôm cua!")
+
+    # Case 3: Reversing R158 (Lùi xe có người sau đuôi)
+    print("\n[CASE 3 - UNECE R158]: Xe lùi bến bãi, người đi bộ sau đuôi")
+    ego3 = EgoVehicleState(speed_mps=-0.4, gear="R")
+    # trail_rear_x = -11.7m, vật tại x = -13.0m -> cách đuôi 1.3m
+    obs3 = TrackedObstacle(track_id=103, class_name="person", confidence=0.95, bbox_xyxy=(0,0,10,10), vcs_x=-13.0, vcs_y=0.0)
+    res3 = calc.evaluate_obstacle(obs3, ego3)
+    print(f"  + BSRI: {res3.bsri_score} | Cấp: {res3.risk_level.name} | Giải thích: {res3.explanation}")
+    assert res3.risk_level == RiskLevel.CRITICAL
+    assert "ĐIỂM MÙ LÙI R158" in res3.explanation
+    print("  => [PASS] Case 3: Bắt chính xác điểm mù sau khi lùi!")
+
+    # Case 4: Bernoulli High-Speed Squeeze (Kẹp sườn tốc độ cao)
+    print("\n[CASE 4 - BERNOULLI SQUEEZE]: Chạy 50km/h song song cự ly cực hẹp 0.3m")
+    ego4 = EgoVehicleState(speed_mps=14.0, yaw_rate_rad_s=0.0)
+    # cab_half_w = 1.25m, vật tại y = -1.55m -> cách sườn 0.3m
+    obs4 = TrackedObstacle(track_id=104, class_name="motorcycle", confidence=0.9, bbox_xyxy=(0,0,10,10), vcs_x=2.0, vcs_y=-1.55, vel_x=0.0, vel_y=0.0)
+    res4 = calc.evaluate_obstacle(obs4, ego4)
+    print(f"  + BSRI: {res4.bsri_score} | Cấp: {res4.risk_level.name} | Giải thích: {res4.explanation}")
+    assert res4.risk_level in [RiskLevel.WARNING, RiskLevel.CRITICAL]
+    assert "KẸP SƯỜN TỐC ĐỘ CAO" in res4.explanation
+    print("  => [PASS] Case 4: Bắt chính xác rủi ro khí động học chạy song song!")
+
+    # Case 5: Cornering Scissors (Cua gắt khuất gương)
+    print("\n[CASE 5 - SCISSORS CORNERING]: Ôm cua gắt |yaw_rate| > 0.08 rad/s")
+    ego5 = EgoVehicleState(speed_mps=5.0, yaw_rate_rad_s=-0.12, turn_signal="RIGHT")
+    obs5 = TrackedObstacle(track_id=105, class_name="car", confidence=0.85, bbox_xyxy=(0,0,10,10), vcs_x=1.5, vcs_y=-2.0)
+    res5 = calc.evaluate_obstacle(obs5, ego5)
+    print(f"  + BSRI: {res5.bsri_score} | Cấp: {res5.risk_level.name} | Giải thích: {res5.explanation}")
+    assert res5.risk_level == RiskLevel.CRITICAL
+    assert "MẤT GÓC GƯƠNG" in res5.explanation
+    print("  => [PASS] Case 5: Bắt chính xác góc cua gắt che khuất gương!")
+
+
+def test_scenario_6_rigid_tail_swing():
+    """
+    Kịch bản 6: Xe tải liền thân (RIGID) rẽ phải gắt ở ngã tư, cản sau văng đuôi (Tail-Swing)
+    sang bên trái làn đường ngược lại. Người đi xe máy đứng ở góc đuôi trái xe được bao phủ bởi DHZ.
+    """
+    print("\n--- [TEST 6]: Văng đuôi (Tail-Swing) xe tải liền thân (RIGID) khi rẽ phải ---")
+    calc = BSRICalculator(vehicle_type="RIGID", rigid_rear_length=2.5, rigid_width=2.5)
+
+    # Xe rẽ phải gắt
+    ego = EgoVehicleState(
+        speed_mps=3.0,
+        yaw_rate_rad_s=-0.15,
+        turn_signal="RIGHT",
+        gear="D"
+    )
+
+    # Xe máy đứng ở góc sau bên TRÁI (x = -2.0m, y = +1.4m -> ngoài mép thân xe bình thường 1.25m)
+    motorcycle = TrackedObstacle(
+        track_id=6,
+        class_name="motorcycle",
+        confidence=0.90,
+        bbox_xyxy=(0, 0, 10, 10),
+        vcs_x=-2.0,
+        vcs_y=1.4,
+        vel_x=0.0,
+        vel_y=0.0
+    )
+
+    dhz = calc.compute_dynamic_hazard_zone(ego)
+    result = calc.evaluate_obstacle(motorcycle, ego, dhz)
+
+    print(f"  + Đối tượng: {result.class_name} #{result.track_id} (C_vru: {result.vru_weight})")
+    print(f"  + Vị trí: ({motorcycle.vcs_x:.1f}m, {motorcycle.vcs_y:.1f}m) -> {result.zone.value}")
+    print(f"  + Nằm trong DHZ nhờ Tail-Swing: {result.is_in_dhz} (Khoảng cách tới viền: {result.dist_to_dhz}m)")
+    print(f"  + Điểm BSRI: {result.bsri_score:.3f}")
+    print(f"  + Cấp độ: {result.risk_level.label_vi} ({result.risk_level.name})")
+
+    assert result.is_in_dhz == True, "Kỳ vọng xe máy nằm trong DHZ do đuôi văng ra ngoài"
+    assert result.vru_weight == 1.0, f"Kỳ vọng C_vru xe máy bằng 1.0 nhưng nhận {result.vru_weight}"
+    print("  => [PASS] Đã bao phủ chính xác hiện tượng văng đuôi Tail-Swing và áp dụng C_vru=1.0 cho xe máy!")
+
+
 if __name__ == "__main__":
     print("=" * 75)
     print(f"{'BLINDGUARD AI - KIỂM THỬ PHÂN HỆ TÍNH TOÁN RỦI RO BSRI':^75}")
@@ -205,7 +310,9 @@ if __name__ == "__main__":
     test_scenario_3_fast_approaching_motorcycle()
     test_scenario_4_vru_handcart_xe_keo()
     test_scenario_5_multi_object_scene_evaluation()
+    test_scenario_6_rigid_tail_swing()
+    test_all_5_special_scenarios()
     print("\n" + "=" * 75)
-    print(f"{'[V] TẤT CẢ 5/5 BÀI KIỂM THỬ KỊCH BẢN BSRI ĐÃ VƯỢT QUA XUẤT SẮC!':^75}")
+    print(f"{'[V] TẤT CẢ CÁC BÀI KIỂM THỬ BSRI VÀ 5 KỊCH BẢN ĐÃ VƯỢT QUA XUẤT SẮC!':^75}")
     print("=" * 75)
 

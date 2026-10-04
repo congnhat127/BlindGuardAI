@@ -138,7 +138,14 @@ def discover_available_models():
                 seen.add(resolved)
                 models.append({"label": label, "path": resolved})
 
-    # 0. Model V3 (Mới nhất bổ sung xe kéo thật fisheye)
+    # 0. Model V4 (Mới nhất - Tối ưu Person, Bicycle và Xe kéo Fisheye)
+    for p in [
+        SCRIPT_DIR / "object_detection" / "runs" / "yolo11n_blindguard_v4" / "weights" / "best.pt",
+        ROOT_DIR / "1_AI_Processing_Edge" / "object_detection" / "runs" / "yolo11n_blindguard_v4" / "weights" / "best.pt",
+    ]:
+        add_model("Model v4 (Toi uu Person/Xe dap)", p)
+
+    # 1. Model V3 (Bổ sung xe kéo thật fisheye)
     for p in [
         SCRIPT_DIR / "object_detection" / "runs" / "yolo11n_blindguard_v3" / "weights" / "best.pt",
         ROOT_DIR / "1_AI_Processing_Edge" / "object_detection" / "runs" / "yolo11n_blindguard_v3" / "weights" / "best.pt",
@@ -246,7 +253,9 @@ def main_app(model_path=None, conf_thres=0.35, iou_thres=0.45):
         mp = Path(model_path).resolve()
         if mp.is_file():
             lbl = mp.stem
-            if "v3" in str(mp).lower():
+            if "v4" in str(mp).lower():
+                lbl = "Model v4 (Toi uu Person/Xe dap)"
+            elif "v3" in str(mp).lower():
                 lbl = "Model v3 (Xe keo Fisheye)"
             elif "v2" in str(mp).lower():
                 lbl = "Model v2 (Cu hon)"
