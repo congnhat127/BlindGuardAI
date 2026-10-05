@@ -10,7 +10,7 @@ import cv2
 import numpy as np
 from typing import List, Dict, Optional
 
-from shapely.geometry import Polygon
+from shapely.geometry import Polygon, box
 
 # QUAN TRỌNG: Phải import cùng đường dẫn gói với bsri_calculator (core.risk_models).
 # Nếu import "risk_models" dạng module gốc, Python tạo ra 2 class RiskLevel khác nhau
@@ -70,7 +70,7 @@ class MultiCamCabinHUDRenderer:
 
         # 1. Vẽ Đa giác DHZ thật (từ BSRICalculator) chiếu ngược lên mặt đường
         if self.show_dhz and homo_manager and homo_manager.is_calibrated and dhz_poly is not None:
-            self._draw_dhz(frame, homo_manager, dhz_poly, highest_threat.risk_level)
+            self._draw_dhz(frame, homo_manager, dhz_poly, highest_threat.risk_level, camera_key)
 
         # 2. Vẽ Bounding Box & Thẻ thông tin
         for obs in obstacles:
@@ -135,9 +135,10 @@ class MultiCamCabinHUDRenderer:
         cam_label = self.CAMERA_NAMES_VI.get(cam_key, cam_key)
         cv2.putText(frame, f"CAM: {cam_label}", (185, 30), cv2.FONT_HERSHEY_DUPLEX, 0.46, (0, 255, 200), 1, cv2.LINE_AA)
 
-        # 3. Tốc độ & FPS
+        # 3. Tốc độ & FPS (từ GPS/IMU phi xâm lấn)
         spd_kmh = abs(ego.speed_mps) * 3.6
-        turn_str = f"| {fps:.1f} FPS | {spd_kmh:.0f} km/h | {ego.gear} | yaw {ego.yaw_rate_rad_s:+.2f} {ego.turn_signal}"
+        turn_info = "THANG" if abs(ego.yaw_rate_rad_s) < 0.035 else ("RE PHAI" if ego.yaw_rate_rad_s < 0 else "RE TRAI")
+        turn_str = f"| {fps:.1f} FPS | {spd_kmh:.0f} km/h | {ego.gear} | Yaw {ego.yaw_rate_rad_s:+.2f} ({turn_info})"
         cv2.putText(frame, turn_str, (460, 30), cv2.FONT_HERSHEY_DUPLEX, 0.46, (200, 240, 200), 1, cv2.LINE_AA)
 
         # 4. Badge rủi ro cao nhất (Top Right)
@@ -173,13 +174,39 @@ class MultiCamCabinHUDRenderer:
         rec_col = (0, 255, 255) if highest.risk_level != RiskLevel.SAFE else (180, 180, 180)
         cv2.putText(frame, rec_txt, (14, y_start + 40), cv2.FONT_HERSHEY_DUPLEX, 0.42, rec_col, 1, cv2.LINE_AA)
 
-    def _draw_dhz(self, frame: np.ndarray, homo_manager, dhz_poly: Polygon, risk_level: RiskLevel):
-        """Chiếu DHZ thật lên ảnh, cắt theo vùng mặt đất camera nhìn thấy để tránh điểm sau camera."""
+    def _draw_dhz(self, frame: np.ndarray, homo_manager, dhz_poly: Polygon, risk_level: RiskLevel, camera_key: str = "MIRROR_RIGHT"):
+        """
+        Chiếu DHZ thật lên ảnh, cắt theo phân vùng hành lang điểm mù vật lý (FOV corridor)
+        của từng camera và vùng mặt đất hợp lệ để tránh biến dạng/chiếu nhầm cản trước sang gương sườn.
+        """
         h, w = frame.shape[:2]
+
+        # 1. Giới hạn DHZ theo phân vùng không gian thực tế mà camera đó phụ trách (VCS ISO 8855)
+        # Thân xe tải rộng 2.5m (từ Y = -1.25m đến +1.25m) che khuất hoàn toàn phía đối diện
+        cam = camera_key or getattr(homo_manager, "active_camera", "MIRROR_RIGHT")
+        if cam == "MIRROR_RIGHT":
+            # Camera Gương phụ: chỉ nhìn thấy dải hành lang hông phải xe (Y <= -1.20m)
+            fov_box = box(-35.0, -15.0, 3.0, -1.20)
+        elif cam == "MIRROR_LEFT":
+            # Camera Gương lái: chỉ nhìn thấy dải hành lang hông trái xe (Y >= +1.20m)
+            fov_box = box(-35.0, 1.20, 3.0, 15.0)
+        elif cam == "CAB_FRONT":
+            # Camera Mũi xe: chỉ nhìn thấy vùng cản trước mũi xe (X >= 2.0m)
+            fov_box = box(2.0, -12.0, 35.0, 12.0)
+        elif cam == "REAR_TRAILER":
+            # Camera Đuôi xe: chỉ nhìn thấy vùng lùi sau rơ-moóc (X <= -7.5m)
+            fov_box = box(-40.0, -12.0, -7.5, 12.0)
+        else:
+            fov_box = None
+
+        scoped_dhz = dhz_poly.intersection(fov_box) if fov_box is not None else dhz_poly
+        if scoped_dhz.is_empty:
+            return
+
         visible = homo_manager.visible_ground_polygon(w, h)
         if not visible:
             return
-        clipped = dhz_poly.intersection(Polygon(visible).buffer(0))
+        clipped = scoped_dhz.intersection(Polygon(visible).buffer(0))
         if clipped.is_empty:
             return
 

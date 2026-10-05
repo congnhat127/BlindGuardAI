@@ -89,17 +89,30 @@ pip install ultralytics opencv-python numpy shapely pyyaml pyserial
 
 ### Bước 2: Chạy các chương trình
 
-#### Cách 1: Chạy Trình Diễn Video Demo
-* **Cách nhanh nhất**: Nhấp đúp chuột vào file **`run_demo.bat`**.
-* **Hoặc chạy bằng dòng lệnh**:
+#### Cách 1: Chạy Trình Diễn Kiểm Thử Camera Thật & Video (`run_demo.py`)
+* **Cách 1.1: Mở giao diện Launcher trực quan**:
+  * Nhấp đúp chuột vào file **`run_demo.bat`** hoặc gõ `python run_demo.py`.
+  * Launcher cho phép bạn chọn ngay giữa:
+    * 🔴 **Camera thực tế**: Chọn `Camera 0` (Webcam/USB), `Camera 1`, hoặc bấm nút `🔍 Quét Cam` để tự động dò tìm webcam đang cắm; hỗ trợ cả link Jetson CSI (`csi://0`) và IP Camera (`rtsp://...`).
+    * 📁 **File video kiểm thử**: Bấm `📂 Duyệt File...` để chọn video `.mp4`, `.avi`.
+  * Chọn góc quan sát của camera (`MIRROR_RIGHT`, `MIRROR_LEFT`, `CAB_FRONT`, `REAR_TRAILER`) rồi bấm **`🚀 BẮT ĐẦU CHẠY KIỂM THỬ`**.
+* **Cách 1.2: Chạy trực tiếp Camera thật bằng dòng lệnh (Không cần qua Launcher)**:
   ```bash
-  python run_demo.py
+  # Chạy ngay với Camera 0 (Webcam laptop hoặc USB Cam chính):
+  python run_demo.py --cam 0
+
+  # Hoặc dùng file bat:
+  run_demo.bat --cam 0
+
+  # Chạy với USB Camera 1 hoặc Camera CSI trên Jetson:
+  python run_demo.py --cam 1
+  python run_demo.py --cam csi://0
   ```
-* **Thao tác trong lúc xem video**:
-  * `[SPACE]` : Tạm dừng / Tiếp tục video.
+* **Thao tác điều khiển trong lúc kiểm thử**:
+  * `[SPACE]` : Tạm dừng / Tiếp tục luồng hình ảnh.
   * `[C]`     : Chuyển đổi qua lại giữa 4 góc camera (`MIRROR_RIGHT` $\to$ `MIRROR_LEFT` $\to$ `CAB_FRONT` $\to$ `REAR_TRAILER`).
-  * `[V]`     : Mở hộp thoại chọn video khác.
-  * `[D]`     : Bật / Tắt hiển thị vùng nguy hiểm động DHZ.
+  * `[V]`     : Mở hộp thoại đổi nguồn (chuyển đổi qua camera khác hoặc đổi sang file video khác tức thì).
+  * `[D]`     : Bật / Tắt hiển thị lưới đa giác nguy hiểm DHZ.
   * `[+]` / `[-]` : Tăng / Giảm tốc độ xe chủ; `[0]` : Dừng xe khẩn cấp.
   * `[J]` / `[L]` : Bẻ lái Trái / Phải; `[K]` : Trả lái thẳng.
   * `[R]`     : Gài số lùi (Kích hoạt kịch bản UNECE R158).
