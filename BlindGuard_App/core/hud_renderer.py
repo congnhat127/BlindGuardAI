@@ -176,37 +176,18 @@ class MultiCamCabinHUDRenderer:
 
     def _draw_dhz(self, frame: np.ndarray, homo_manager, dhz_poly: Polygon, risk_level: RiskLevel, camera_key: str = "MIRROR_RIGHT"):
         """
-        Chiếu DHZ thật lên ảnh, cắt theo phân vùng hành lang điểm mù vật lý (FOV corridor)
-        của từng camera và vùng mặt đất hợp lệ để tránh biến dạng/chiếu nhầm cản trước sang gương sườn.
+        Chiếu đa giác DHZ từ hệ VCS qua ma trận Homography của camera hiện tại lên khung hình pixel.
+        Các tọa độ nằm trong tầm quan sát mặt đất của camera sẽ được hiển thị ở khu vực đáy/xung quanh xe,
+        các tọa độ ngoài tầm nhìn (hoặc sau camera) sẽ tự động được loại bỏ.
         """
         h, w = frame.shape[:2]
-
-        # 1. Giới hạn DHZ theo phân vùng không gian thực tế mà camera đó phụ trách (VCS ISO 8855)
-        # Thân xe tải rộng 2.5m (từ Y = -1.25m đến +1.25m) che khuất hoàn toàn phía đối diện
-        cam = camera_key or getattr(homo_manager, "active_camera", "MIRROR_RIGHT")
-        if cam == "MIRROR_RIGHT":
-            # Camera Gương phụ: chỉ nhìn thấy dải hành lang hông phải xe (Y <= -1.20m)
-            fov_box = box(-35.0, -15.0, 3.0, -1.20)
-        elif cam == "MIRROR_LEFT":
-            # Camera Gương lái: chỉ nhìn thấy dải hành lang hông trái xe (Y >= +1.20m)
-            fov_box = box(-35.0, 1.20, 3.0, 15.0)
-        elif cam == "CAB_FRONT":
-            # Camera Mũi xe: chỉ nhìn thấy vùng cản trước mũi xe (X >= 2.0m)
-            fov_box = box(2.0, -12.0, 35.0, 12.0)
-        elif cam == "REAR_TRAILER":
-            # Camera Đuôi xe: chỉ nhìn thấy vùng lùi sau rơ-moóc (X <= -7.5m)
-            fov_box = box(-40.0, -12.0, -7.5, 12.0)
-        else:
-            fov_box = None
-
-        scoped_dhz = dhz_poly.intersection(fov_box) if fov_box is not None else dhz_poly
-        if scoped_dhz.is_empty:
-            return
 
         visible = homo_manager.visible_ground_polygon(w, h)
         if not visible:
             return
-        clipped = scoped_dhz.intersection(Polygon(visible).buffer(0))
+
+        # Cắt đa giác DHZ theo đúng tầm nhìn mặt đất mà camera quan sát được (Visible Ground)
+        clipped = dhz_poly.intersection(Polygon(visible).buffer(0))
         if clipped.is_empty:
             return
 
@@ -219,9 +200,8 @@ class MultiCamCabinHUDRenderer:
             for vx, vy in g.exterior.coords:
                 p = homo_manager.world_to_pixel(vx, vy)
                 if p is None:
-                    pts = []
-                    break
-                pts.append([int(np.clip(p[0], -4 * w, 5 * w)), int(np.clip(p[1], -4 * h, 5 * h))])
+                    continue
+                pts.append([int(np.clip(p[0], 0, w - 1)), int(np.clip(p[1], 0, h - 1))])
             if len(pts) >= 3:
                 polys_px.append(np.array(pts, dtype=np.int32))
         if not polys_px:
