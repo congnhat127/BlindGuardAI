@@ -1,0 +1,360 @@
+{
+    "version": "2.0",
+    "updated_at": "2026-10-05 14:00:00",
+    "coordinate_system": {
+        "standard": "ISO 8855 / SAE J670 (Vehicle Coordinate System - VCS)",
+        "unit": "meter",
+        "axis_x": "Longitudinal (Forward > 0, Rearward < 0)",
+        "axis_y": "Lateral (Left > 0, Right < 0)",
+        "axis_z": "Vertical (Upward > 0, Ground Z = 0)",
+        "origin": "Tractor Rear Axle Center"
+    },
+    "vehicle_profile": {
+        "vehicle_type": "ARTICULATED",
+        "name": "Xe đầu kéo sơ-mi rơ-moóc chuẩn",
+        "tractor_wheelbase": 3.6,
+        "tractor_front_overhang": 1.35,
+        "cab_width": 2.5,
+        "kingpin_distance": 0.3,
+        "trailer_wheelbase": 8.2,
+        "trailer_rear_overhang": 2.8,
+        "trailer_front_overhang": 1.0,
+        "trailer_width": 2.5,
+        "trailer_length": 12.0,
+        "rigid_wheelbase": 5.8,
+        "rigid_front_overhang": 1.35,
+        "rigid_rear_overhang": 2.4,
+        "rigid_rear_length": 2.4,
+        "rigid_width": 2.5,
+        "rigid_front_length": 7.15,
+        "base_clearance": 1.5,
+        "tractor_front_length": 4.95
+    },
+    "selected_camera": "MIRROR_RIGHT",
+    "cameras": {
+        "MIRROR_RIGHT": {
+            "name": "Camera Gương Phụ (Hông phải)",
+            "blind_spot_zone": "MIRROR_RIGHT",
+            "description": "Bao quát góc mù bên phụ Class IV/V và vùng quét rơ-moóc bên phải (Swept Path). Góc nguy hiểm nhất tại VN.",
+            "image_shape": [
+                720,
+                1280
+            ],
+            "points_pixel": [
+                [
+                    850.0,
+                    680.0
+                ],
+                [
+                    1200.0,
+                    680.0
+                ],
+                [
+                    750.0,
+                    420.0
+                ],
+                [
+                    1050.0,
+                    420.0
+                ]
+            ],
+            "points_vcs_meter": [
+                [
+                    1.0,
+                    -1.6
+                ],
+                [
+                    1.0,
+                    -3.8
+                ],
+                [
+                    -4.5,
+                    -1.6
+                ],
+                [
+                    -4.5,
+                    -3.8
+                ]
+            ],
+            "homography_matrix_pixel_to_vcs": [
+                [
+                    7.633240255441849e-19,
+                    0.029824561403508747,
+                    -18.684210526315773
+                ],
+                [
+                    -0.010035087393041228,
+                    0.0024561402044798158,
+                    4.305262942063173
+                ],
+                [
+                    -4.306528595574458e-19,
+                    0.0008771929824561392,
+                    1.0
+                ]
+            ],
+            "homography_matrix_vcs_to_pixel": [
+                [
+                    -2.84715284715284,
+                    -99.65035289014467,
+                    375.8241682646547
+                ],
+                [
+                    21.638361638361665,
+                    -1.5704299691405207e-14,
+                    404.29570429570464
+                ],
+                [
+                    -0.018981018981018984,
+                    -2.913900794436063e-17,
+                    0.6453546453546458
+                ]
+            ],
+            "reprojection_error_m": 0.0,
+            "is_calibrated": true
+        },
+        "MIRROR_LEFT": {
+            "name": "Camera Gương Lái (Hông trái)",
+            "blind_spot_zone": "MIRROR_LEFT",
+            "description": "Bao quát góc mù bên tài xế khi chuyển làn hoặc vào cua trái.",
+            "image_shape": [
+                720,
+                1280
+            ],
+            "points_pixel": [
+                [
+                    430.0,
+                    680.0
+                ],
+                [
+                    80.0,
+                    680.0
+                ],
+                [
+                    530.0,
+                    420.0
+                ],
+                [
+                    230.0,
+                    420.0
+                ]
+            ],
+            "points_vcs_meter": [
+                [
+                    1.0,
+                    1.6
+                ],
+                [
+                    1.0,
+                    3.8
+                ],
+                [
+                    -4.5,
+                    1.6
+                ],
+                [
+                    -4.5,
+                    3.8
+                ]
+            ],
+            "homography_matrix_pixel_to_vcs": [
+                [
+                    -7.633240255441855e-19,
+                    0.029824561403508767,
+                    -18.684210526315788
+                ],
+                [
+                    -0.010035087393041235,
+                    -0.002456140204479817,
+                    8.539648921029604
+                ],
+                [
+                    4.306528595574461e-19,
+                    0.0008771929824561397,
+                    1.0
+                ]
+            ],
+            "homography_matrix_vcs_to_pixel": [
+                [
+                    -21.44855144855144,
+                    -99.65035289014455,
+                    450.2297777892918
+                ],
+                [
+                    21.638361638361648,
+                    1.5704299691405194e-14,
+                    404.29570429570435
+                ],
+                [
+                    -0.01898101898101897,
+                    2.913900794436061e-17,
+                    0.6453546453546455
+                ]
+            ],
+            "reprojection_error_m": 0.0,
+            "is_calibrated": true
+        },
+        "CAB_FRONT": {
+            "name": "Camera Mũi Xe (Gầm cabin trước)",
+            "blind_spot_zone": "CAB_FRONT",
+            "description": "Bao quát điểm mù sát cản trước (Class VI) khi dừng đèn đỏ và khởi hành (UNECE R159 MOIS).",
+            "image_shape": [
+                720,
+                1280
+            ],
+            "points_pixel": [
+                [
+                    400.0,
+                    680.0
+                ],
+                [
+                    880.0,
+                    680.0
+                ],
+                [
+                    480.0,
+                    400.0
+                ],
+                [
+                    800.0,
+                    400.0
+                ]
+            ],
+            "points_vcs_meter": [
+                [
+                    4.5,
+                    1.2
+                ],
+                [
+                    4.5,
+                    -1.2
+                ],
+                [
+                    9.0,
+                    1.2
+                ],
+                [
+                    9.0,
+                    -1.2
+                ]
+            ],
+            "homography_matrix_pixel_to_vcs": [
+                [
+                    0.0,
+                    -0.028124999999999956,
+                    42.749999999999964
+                ],
+                [
+                    -0.026250001043081266,
+                    0.0,
+                    16.80000066757201
+                ],
+                [
+                    0.0,
+                    0.006249999999999994,
+                    1.0
+                ]
+            ],
+            "homography_matrix_vcs_to_pixel": [
+                [
+                    13.544973544973557,
+                    -38.09523658146942,
+                    60.95238095238096
+                ],
+                [
+                    -3.386243386243388,
+                    -0.0,
+                    144.76190476190493
+                ],
+                [
+                    0.021164021164021184,
+                    0.0,
+                    0.09523809523809526
+                ]
+            ],
+            "reprojection_error_m": 0.0,
+            "is_calibrated": true
+        },
+        "REAR_TRAILER": {
+            "name": "Camera Đuôi Xe (Điểm mù lùi sau)",
+            "blind_spot_zone": "REAR_TRAILER",
+            "description": "Bao quát điểm mù sau thùng xe/rơ-moóc khi lùi bến bãi (UNECE R158).",
+            "image_shape": [
+                720,
+                1280
+            ],
+            "points_pixel": [
+                [
+                    400.0,
+                    680.0
+                ],
+                [
+                    880.0,
+                    680.0
+                ],
+                [
+                    480.0,
+                    400.0
+                ],
+                [
+                    800.0,
+                    400.0
+                ]
+            ],
+            "points_vcs_meter": [
+                [
+                    -12.5,
+                    1.2
+                ],
+                [
+                    -12.5,
+                    -1.2
+                ],
+                [
+                    -18.0,
+                    1.2
+                ],
+                [
+                    -18.0,
+                    -1.2
+                ]
+            ],
+            "homography_matrix_pixel_to_vcs": [
+                [
+                    0.0,
+                    -0.009375000000000012,
+                    -59.24999999999996
+                ],
+                [
+                    -0.026250001043081266,
+                    0.0,
+                    16.80000066757201
+                ],
+                [
+                    0.0,
+                    0.006249999999999994,
+                    1.0
+                ]
+            ],
+            "homography_matrix_vcs_to_pixel": [
+                [
+                    -11.08225108225109,
+                    -38.09523658146942,
+                    -16.62337662337667
+                ],
+                [
+                    2.770562770562768,
+                    -0.0,
+                    164.1558441558443
+                ],
+                [
+                    -0.01731601731601733,
+                    -0.0,
+                    -0.025974025974026052
+                ]
+            ],
+            "reprojection_error_m": 0.0,
+            "is_calibrated": true
+        }
+    }
+}

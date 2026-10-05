@@ -1,0 +1,10 @@
+# BlindGuardAI - Custom ByteTrack configuration for 180-deg Fisheye Camera
+# Tối ưu hóa cho camera mắt cá góc rộng và môi trường giao thông Việt Nam
+
+tracker_type: bytetrack  # Thuật toán ByteTrack
+track_high_thresh: 0.35 # Ngưỡng ghép đôi Vòng 1 cho các box rõ nét
+track_low_thresh: 0.10  # Ngưỡng cứu box Vòng 2 cho xe bị mờ / méo góc mắt cá / bị che khuất
+new_track_thresh: 0.40  # Ngưỡng tối thiểu để cấp Track ID mới (tránh tạo ID rác từ nhiễu)
+track_buffer: 30        # Số frame tối đa lưu vết xe bị mất dấu (~1.5s)
+match_thresh: 0.80      # Ngưỡng chi phí ghép đôi tối đa
+fuse_score: true
