@@ -30,6 +30,18 @@ class RiskLevel(Enum):
         self.color_hex = color_hex
         self.description = description
 
+    def __eq__(self, other):
+        if hasattr(other, 'name'):
+            return self.name == other.name
+        if isinstance(other, (int, float)):
+            return self.code == int(other)
+        if isinstance(other, str):
+            return self.name == other or self.label_vi == other
+        return super().__eq__(other)
+
+    def __hash__(self):
+        return hash(self.name)
+
 
 class BlindSpotZone(Enum):
     """
@@ -43,6 +55,16 @@ class BlindSpotZone(Enum):
     REAR_TRAILER = "Đuôi rơ-moóc (Điểm mù sau)"
     CLEAR_ZONE = "Vùng thoáng (Ngoài điểm mù)"
 
+    def __eq__(self, other):
+        if hasattr(other, 'name'):
+            return self.name == other.name
+        if isinstance(other, str):
+            return self.name == other or self.value == other
+        return super().__eq__(other)
+
+    def __hash__(self):
+        return hash(self.name)
+
 
 class VehicleType(Enum):
     """
@@ -50,6 +72,16 @@ class VehicleType(Enum):
     """
     ARTICULATED = "ARTICULATED"
     RIGID = "RIGID"
+
+    def __eq__(self, other):
+        if hasattr(other, 'name'):
+            return self.name == other.name
+        if isinstance(other, str):
+            return self.name == other.upper() or self.value == other.upper()
+        return super().__eq__(other)
+
+    def __hash__(self):
+        return hash(self.name)
 
 
 @dataclass
