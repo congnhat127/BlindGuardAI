@@ -356,9 +356,13 @@ class BSRICalculator:
 
     def classify_blind_spot_zone(self, x: float, y: float, ego: Optional[EgoVehicleState] = None) -> BlindSpotZone:
         """
-        Phân loại đối tượng tại tọa độ (x, y) thuộc vào vùng điểm mù hình học nào của xe tải.
+        Phân loại đối tượng tại tọa độ (x, y) vào các phân vùng nguy cơ hình học của mô hình BSRI.
+        Mô hình tham chiếu các mục tiêu bảo vệ và bài thử nghiệm của UNECE R46/R151/R158/R159,
+        tự động sinh biên vùng dựa trên kích thước hình học đầu vào của xe tải.
         Đối với xe đầu kéo (ARTICULATED), các vùng rơ-moóc (SWEPT_PATH, REAR_TRAILER) tự động
         được xoay quanh chốt mâm kéo (Kingpin) theo góc gập gamma thực tế của rơ-moóc.
+        Lưu ý: Các polygon này là mô hình tham chiếu nội bộ phục vụ tính toán rủi ro BSRI,
+        không phải các polygon pháp lý nguyên văn từ văn bản UNECE.
         """
         vtype = getattr(ego, "vehicle_type", self.vehicle_type) if ego is not None else self.vehicle_type
         if isinstance(vtype, str):
@@ -507,12 +511,15 @@ class BSRICalculator:
 
     def calculate_blind_spot_factor(self, zone: BlindSpotZone) -> float:
         """
-        Tính hệ số khuếch đại do đối tượng nằm trong các góc mù nguy hiểm của tài xế.
+        Tính hệ số rủi ro che khuất nội bộ V_blind (Visibility / Occlusion Risk Multiplier).
+        Đây là tham số hiệu chỉnh kỹ thuật nội bộ (heuristic calibration parameter) của mô hình BSRI,
+        dùng để tăng độ nhạy cảnh báo tại các khu vực tài xế khó quan sát trực tiếp hoặc qua gương.
+        Hoàn toàn không phải là hệ số pháp lý do tiêu chuẩn quốc tế ấn định.
         """
         if zone in [BlindSpotZone.MIRROR_RIGHT, BlindSpotZone.SWEPT_PATH_RIGHT]:
-            return 1.25  # Góc mù bên phụ nguy hiểm nhất
+            return 1.25  # Góc sườn phụ / bụng cua rơ-moóc khó quan sát
         elif zone == BlindSpotZone.CAB_FRONT:
-            return 1.20  # Mũi xe gầm cao tài xế hoàn toàn không thấy
+            return 1.20  # Vùng cản trước mũi xe
         elif zone == BlindSpotZone.REAR_TRAILER:
             return 1.20  # Sau thùng rơ-moóc
         elif zone in [BlindSpotZone.MIRROR_LEFT, BlindSpotZone.SWEPT_PATH_LEFT]:

@@ -218,44 +218,76 @@ $$\frac{d\gamma}{dt} = \omega_z - \frac{v \cdot \sin(\gamma) + d_{\text{hitch}} 
 
 ---
 
-## 6. MÔ HÌNH PHÂN VÙNG ĐIỂM MÙ KHÔNG GIAN (BLIND SPOT ZONES & FACTOR)
+## 6. MÔ HÌNH PHÂN VÙNG NGUY HIỂM THAM CHIẾU TIÊU CHUẨN (STANDARD-REFERENCED HAZARD ZONING MODEL)
 
-Phân loại đối tượng tại $(X, Y)$ vào các vùng quang học theo chuẩn Châu Âu **2003/97/EC** và **UNECE R151/R158/R159**:
+### 6.1. Phân Biệt Ba Khái Niệm Cốt Lõi Trong Kỹ Thuật An Toàn
+Để đảm bảo tính chuẩn xác về mặt khoa học và kỹ thuật, hệ thống BSRI phân định rõ 3 khái niệm:
+1. **Trường nhìn gián tiếp (Field of Vision):** Vùng mặt đường mà người lái có thể quan sát thông qua gương chiếu hậu hoặc camera giám sát, được quy định hình học cụ thể trong **UNECE R46** (gương Class I đến VI) và **UNECE R158** (trường nhìn lùi).
+2. **Biên vùng che khuất (Blind-Spot / Occlusion Boundary):** Vùng không gian xung quanh xe mà mắt người lái hoặc thiết bị quang học bị cản trở bởi kết cấu xe (cabin, thùng rơ-moóc, góc khuất cột A/B, độ cao buồng lái).
+3. **Vùng phát hiện và cảnh báo nguy cơ (Hazard Detection / Warning Zone):** Vùng không gian mà hệ thống BSRI chủ động giám sát và tính toán chỉ số rủi ro. Các vùng này được mô hình hóa tự động từ thông số hình học xe và tham chiếu các điều kiện thử nghiệm, mục tiêu bảo vệ của các tiêu chuẩn quốc tế.
+
+### 6.2. Sáu Vùng Nguy Hiểm Mô Hình Hóa Trong BSRI
+Hệ thống tự động sinh 6 phân vùng hình học dựa trên thông số đầu vào của xe ($x_{\text{front}}, x_{\text{rear}}, W, d_{\text{hitch}}, \gamma$):
 
 ```
-        ▲ +X
-        │
-┌───────┴───────┐  [Zone 1: CAB_FRONT] (Class VI)
-│  Gầm cản trước│  X in [L_f, x_front + 2.0m], |Y| <= W/2 + 0.8m
-└───────┬───────┘
-        │
-   ┌────┴────┐     [Zone 2 & 3: MIRROR_RIGHT / MIRROR_LEFT] (Class IV/V)
-   │  Cabin  │     X in [d_hitch, x_front], Y in [-3.5m, -W/2] hoặc [W/2, 3.5m]
-   └────┬────┘
-        │
- ╔══════╧══════╗   [Zone 4 & 5: SWEPT_PATH_RIGHT / SWEPT_PATH_LEFT]
- ║ Thùng / Rơ- ║   Bụng cua quét sườn rơ-moóc/xe tải khi ôm cua
- ║    moóc     ║   X in [x_rear, d_hitch], |Y| in [W/2, 4.5m]
- ╚══════╤══════╝
-        │
-┌───────┴───────┐  [Zone 6: REAR_TRAILER] (UNECE R158)
-│Điểm mù lùi sau│  X in [x_rear - 3.5m, x_rear], |Y| <= W/2 + 1.0m
-└───────────────┘
+                                  ▲ Hướng tiến (+X)
+                          ┌───────────────┐
+                          │   CAB_FRONT   │  Tham chiếu phạm vi thử nghiệm MOIS (R159)
+                          │               │  X in [L_f, x_front + 2.0m], |Y| <= W/2 + 0.8m
+                          └───┬───────┬───┘
+               MIRROR_LEFT    │ CABIN │    MIRROR_RIGHT
+              (Rộng 3.5m) ────┤ ĐẦU   ├──── (Rộng 3.5m - Tham chiếu 1 làn đường)
+             (Class II/IV)    │ KÉO   │    (Class IV/V - Directive 2003/97/EC / R46)
+                              └───┬───┘
+                                  │ Khớp xoay Kingpin (d_hitch)
+                        ╔═════════╧═════════╗
+     SWEPT_PATH_LEFT    ║    THÙNG HÀNG     ║   SWEPT_PATH_RIGHT
+       (Rộng 4.5m)  ════╣    RƠ - MOÓC      ╠════ (Rộng 4.5m - Quỹ đạo rơ-moóc chém cua)
+                        ║   (Dài 12 - 14m)  ║   (Tham chiếu phạm vi kiểm thử R151 BSIS)
+                        ╚═════════╤═════════╝
+                          ┌───────┴───────┐
+                          │  REAR_TRAILER │  Tham chiếu trường nhìn lùi R158
+                          │  (Điểm mù lùi)│  X in [x_rear - 3.5m, x_rear], |Y| <= W/2 + 1.0m
+                          └───────────────┘
 ```
 
-### Bảng Hệ Số Góc Mù Quang Học ($V_{\text{blind}}$)
-
-| Phân Vùng Điểm Mù | Mã Vùng | Tiêu Chuẩn Quốc Tế | $V_{\text{blind}}$ | Cơ sở lý luận kỹ thuật |
-|---|---|---|:---:|---|
-| **Điểm mù lùi xe** | `REAR_TRAILER` | UNECE R158 | **1.35** | Không có tầm nhìn qua gương chiếu hậu; chiều dài thùng $\ge 12\text{m}$ che khuất 100% tầm nhìn trực tiếp. |
-| **Bụng cua sườn phụ** | `SWEPT_PATH_RIGHT` | UNECE R151 | **1.30** | Vùng nguy hiểm chết người do bánh rơ-moóc chém cua (Inswing), người đi xe máy/xe đạp bị hút vào gầm. |
-| **Hông phụ Cabin** | `MIRROR_RIGHT` | Class IV / V | **1.25** | Vị trí xa mắt tài xế nhất (xe tay lái thuận), góc quan sát gương bị hẹp và dễ bị cột A/B che khuất. |
-| **Gầm cản trước mũi xe** | `CAB_FRONT` | UNECE R159 (MOIS) | **1.20** | Điểm mù cản trước xe đầu kéo buồng lái phẳng (COE - Cab-Over-Engine), tầm nhìn dưới kính chắn gió $< 2.0\text{m}$. |
-| **Bụng cua sườn lái** | `SWEPT_PATH_LEFT` | UNECE R151 | **1.15** | Vùng lấn cua sườn bên trái khi rẽ trái. |
-| **Hông lái Cabin** | `MIRROR_LEFT` | Class II / IV | **1.00** | Cạnh cửa sổ tài xế, có thể quan sát trực tiếp bằng mắt (Direct Vision). |
-| **Vùng ngoài điểm mù** | `CLEAR_ZONE` | Standard Area | **0.40** | Nằm ngoài các góc mù vật lý, tài xế dễ dàng quan sát bình thường. |
+#### Chi Tiết Cơ Sở Tham Chiếu Từng Vùng:
+1. **`CAB_FRONT` (Vùng cản trước mũi xe):**
+   - **Tham chiếu tiêu chuẩn:** UNECE R159 (Moving-Off Information System - MOIS).
+   - **Bản chất tiêu chuẩn:** R159 yêu cầu hệ thống phát hiện người đi bộ và người đi xe đạp phía trước xe trong vùng mù hình học với khoảng cách phát hiện từ $0.8\text{m}$ đến tối đa $3.7\text{m}$ (không nhỏ hơn $1.0\text{m}$), và biên bên cách mép ngoài xe $0.5\text{m}$. Trong bài thử tĩnh của R159, mục tiêu di chuyển ngang được kiểm tra ở cự ly tới $2.0\text{m}$ phía trước xe.
+   - **Mô hình trong ứng dụng:** Chọn vùng cảnh báo giả định phía trước với chiều dài $2.0\text{m}$ tính từ cản trước và rộng tràn ra $0.8\text{m}$ mỗi bên mép cabin. Đây là vùng nguy cơ trực diện khi xe bắt đầu khởi hành (Moving-off).
+2. **`MIRROR_RIGHT` & `MIRROR_LEFT` (Vùng sườn cabin bên phụ & bên lái):**
+   - **Tham chiếu tiêu chuẩn:** Phân loại gương theo UNECE R46 và Chỉ thị Châu Âu 2003/97/EC (Class II, IV, V).
+   - **Bản chất tiêu chuẩn:** R46 quy định trường nhìn gián tiếp của gương chính (Class II), gương góc rộng (Class IV) và gương quan sát cận sườn (Class V). Bề rộng $3.5\text{m}$ trong mô hình là tham số mô phỏng đại diện cho một làn đường giao thông liền kề tiêu chuẩn, nơi các phương tiện hai bánh thường di chuyển song song với cabin xe tải.
+3. **`SWEPT_PATH_RIGHT` & `SWEPT_PATH_LEFT` (Vùng bụng cua sườn rơ-moóc):**
+   - **Tham chiếu tiêu chuẩn:** Mục tiêu bảo vệ người đi xe đạp của UNECE R151 (Blind Spot Information System - BSIS) kết hợp mô hình động học vệt quét (Swept Path / Off-tracking).
+   - **Bản chất tiêu chuẩn:** R151 quy định điều kiện thử nghiệm phát hiện người đi xe đạp ở cự ly ngang từ $0.9\text{m}$ đến $4.25\text{m}$ và vùng va chạm giả định $0 - 6\text{m}$ tính từ góc trước bên phải.
+   - **Mô hình trong ứng dụng:** Vùng $4.5\text{m}$ là tham số bao phủ bảo thủ của mô hình động học nội bộ nhằm bao trùm toàn bộ dải vệt quét rơ-moóc khi vào cua; đây không phải là một polygon quy định cố định nguyên văn trong tài liệu UNECE R151.
+4. **`REAR_TRAILER` (Vùng lùi sau rơ-moóc):**
+   - **Tham chiếu tiêu chuẩn:** UNECE R158 (Hỗ trợ lùi xe an toàn).
+   - **Bản chất tiêu chuẩn:** R158 phân biệt trường nhìn gần phía sau (*close-proximity rear-view field of vision*: $0.3\text{m} - 3.5\text{m}$ sau xe) và vùng phát hiện tối thiểu (*field of detection*: $0.2\text{m} - 1.0\text{m}$).
+   - **Mô hình trong ứng dụng:** Vùng kiểm tra lùi sau xe được chọn với chiều sâu $3.5\text{m}$ sau cản đuôi và mở rộng biên bên để dự phòng nguy cơ khi rơ-moóc lùi bến bãi.
 
 ---
+
+### 6.3. Hệ Số Rủi Ro Che Khuất Nội Bộ ($V_{\text{blind}}$)
+
+> [!IMPORTANT]
+> **Lưu ý về nguồn gốc tham số:**
+> Các giá trị $V_{\text{blind}}$ dưới đây là **hệ số hiệu chỉnh kỹ thuật nội bộ (heuristic calibration parameters)** được xây dựng riêng cho mô hình BSRI, nhằm tăng mức độ ưu tiên cảnh báo khi đối tượng nằm trong các vùng khó quan sát trực tiếp. **Các giá trị này KHÔNG PHẢI là tham số pháp lý do UNECE hay bất kỳ tiêu chuẩn quốc tế nào quy định.**
+
+| Phân Vùng Nguy Cơ | Mã Vùng | Phân Cấp Quan Sát Thực Tế | $V_{\text{blind}}$ | Cơ sở lý luận trong mô hình BSRI |
+|---|---|---|:---:|---|
+| **Vùng ngoài điểm mù** | `CLEAR_ZONE` | Nhìn thấy trực tiếp dễ dàng | **0.85** | Nằm trong tầm mắt tự nhiên qua kính lái, nguy cơ bị che khuất thấp. |
+| **Hông lái Cabin** | `MIRROR_LEFT` | Nhìn trực tiếp qua cửa sổ lái | **1.10** | Cạnh mắt người lái, có thể quan sát trực tiếp và qua gương Class II. |
+| **Bụng cua sườn lái** | `SWEPT_PATH_LEFT` | Quan sát qua gương bên lái | **1.10** | Rơ-moóc phía sau bên lái khi vào cua trái. |
+| **Gầm cản trước mũi xe** | `CAB_FRONT` | Bị che khuất dưới cản xe tải | **1.20** | Điểm mù trực diện khi dừng đèn đỏ / khởi hành cự ly gần. |
+| **Đuôi rơ-moóc** | `REAR_TRAILER` | Che khuất hoàn toàn phía sau | **1.20** | Không có tầm nhìn trực tiếp qua gương; rủi ro cao khi thao tác lùi. |
+| **Hông phụ Cabin** | `MIRROR_RIGHT` | Quan sát qua gương phụ góc xa | **1.25** | Cách xa mắt người lái ($> 2.5\text{m}$), dễ bị che khuất bởi cột cabin. |
+| **Bụng cua sườn phụ** | `SWEPT_PATH_RIGHT` | Rơ-moóc chém cua che khuất gương | **1.25** | Vùng kẹp rơ-moóc nguy hiểm nhất khi xe rẽ phải (hiện tượng Inswing). |
+
+---
+
 
 ## 7. CHỈ SỐ RỦI RO ĐIỂM MÙ BSRI (BLIND SPOT RISK INDEX ENGINE)
 
@@ -328,20 +360,20 @@ $$M_{\text{ego}} = \text{clip}\left( \prod k_j, 0.80, 2.00 \right)$$
 
 ## 8. BỘ LỌC AN TOÀN 5 KỊCH BẢN ĐẶC BIỆT (FAST-PATH SAFETY GATEKEEPER)
 
-Nhằm đảm bảo an toàn tuyệt đối và tuân thủ các quy chuẩn UNECE, trước khi tính BSRI thông thường, hệ thống quét qua **5 Kịch bản Đặc biệt** với quyền ưu tiên ghi đè (Safety Override):
+Nhằm đảm bảo an toàn chủ động và tham chiếu các mục tiêu bảo vệ trọng tâm của các tiêu chuẩn quốc tế (UNECE R159, R151, R158), trước khi tính BSRI thông thường, hệ thống quét qua **5 Kịch bản An toàn Đặc biệt** với quyền ưu tiên ghi đè (Safety Override):
 
-### 8.1. Kịch bản 1: UNECE R159 MOIS (Moving-Off Information System)
+### 8.1. Kịch bản 1: Tham Chiếu Mục Tiêu Bảo Vệ UNECE R159 MOIS (Moving-Off Front Hazard)
 - **Tình huống:** Xe dừng đèn đỏ hoặc dừng chờ khởi hành ($|v| < 0.20\text{ m/s}$), có VRU đứng sát ngay trước cản cabin ($x \in [x_{\text{front}}, x_{\text{front}} + 1.80\text{ m}]$ và $|y| \le W/2 + 0.30\text{ m}$).
 - **Vấn đề toán học:** Vì cả xe và người đều đứng yên, $v_{\text{closing}} \approx 0 \implies \text{TTC} = \text{None}$, công thức vận tốc tương đối bị vô hiệu hóa.
 - **Giải thuật vật lý:** Tính thời gian va chạm giả định khi xe đạp ga đề-pa với gia tốc khởi hành chuẩn của xe tải nặng $a_{\text{takeoff}} = 1.20\text{ m/s}^2$:
   $$\text{TTC}_{\text{takeoff}} = \sqrt{\frac{2 \cdot d_{\text{front}}}{a_{\text{takeoff}}}}, \quad \text{với } d_{\text{front}} = X_{\text{vcs}} - x_{\text{front}}$$
 - **Đầu ra:** $\text{BSRI} = 1.00$, Phân cấp `CRITICAL`, giải thích XAI cảnh báo tài xế giữ chặt chân phanh, cấm xuất phát.
 
-### 8.2. Kịch bản 2: UNECE R151 BSIS (Blind Spot Information System) — Bẫy Kẹp Cua Sườn Phải
+### 8.2. Kịch bản 2: Tham Chiếu Mục Tiêu Bảo Vệ UNECE R151 BSIS (Turning-Side Pinch Hazard)
 - **Tình huống:** Xe đang xi-nhan phải hoặc bắt đầu đánh lái rẽ phải ($\omega_z < -0.03\text{ rad/s}$), có VRU di chuyển hoặc đứng trong vùng kẹp cua $X \in [x_{\text{rear}}, 0.70 x_{\text{front}}]$, $Y \in [-2.50\text{ m}, -W/2]$.
 - **Đầu ra:** $\text{BSRI} = 0.850$, Phân cấp `CRITICAL`, cảnh báo bánh rơ-moóc sẽ chém trúng đối tượng do hiện tượng Inswing, khuyến nghị dừng chờ hoặc mở rộng góc cua.
 
-### 8.3. Kịch bản 3: UNECE R158 Reversing — Điểm Mù Lùi Xe Bến Bãi
+### 8.3. Kịch bản 3: Tham Chiếu Mục Tiêu Bảo Vệ UNECE R158 (Reverse Hazard)
 - **Tình huống:** Xe đang cài số lùi (Gear = 'R') hoặc có vận tốc lùi ($v < -0.10\text{ m/s}$), có chướng ngại vật đứng phía sau đuôi ($X < x_{\text{rear}}$) trong phạm vi $d_{\text{rear}} \le 2.50\text{ m}$ và $|Y| \le W/2 + 0.60\text{ m}$.
 - **Giải thuật vật lý:**
   $$\text{TTC}_{\text{rev}} = \frac{d_{\text{rear}}}{|v|}$$

@@ -956,7 +956,7 @@ class BSRISimulatorApp(tk.Tk):
             detail.append(f" 3. Thời gian va chạm : TTC = {ttc_str}")
             detail.append(f" 4. Rủi ro Thời gian  : S_temporal = {target_res.temporal_risk:.3f} (Trọng số wt=0.55)")
             detail.append(f" 5. Hệ số đối tượng   : C_vru = {target_res.vru_weight:.2f} ({'Tối đa sinh mạng VRU' if target_res.vru_weight == 1.0 else 'Có khung vỏ'})")
-            detail.append(f" 6. Hệ số góc quang học: V_blind = {target_res.blind_factor:.2f}")
+            detail.append(f" 6. Hệ số rủi ro che khuất: V_blind = {target_res.blind_factor:.2f} (Trọng số nội bộ BSRI)")
             detail.append(f" 7. Hệ số thao tác xe : M_ego = {target_res.maneuver_factor:.2f} (IMU Yaw Rate & Đánh lái)")
             detail.append("────────────────────────────────────────────────────────")
             detail.append(f"🧮 CÔNG THỨC: BSRI = min(1.0, (0.45*S_s + 0.55*S_t) * C_vru * V_blind * M_ego)")
@@ -1077,24 +1077,24 @@ class BSRISimulatorApp(tk.Tk):
         hw = w / 2.0
 
         zones_data = [
-            # Zone 1: CAB_FRONT (Class VI)
+            # Zone 1: CAB_FRONT (Tham chiếu MOIS)
             ([ (x_front, -hw - 0.8), (x_front + 2.0, -hw - 0.8), (x_front + 2.0, hw + 0.8), (x_front, hw + 0.8) ],
-             "#ffb300", "Class VI: Cản trước"),
-            # Zone 2: MIRROR_RIGHT (Class IV/V)
+             "#ffb300", "CAB_FRONT (MOIS cản trước)"),
+            # Zone 2: MIRROR_RIGHT (Gương phụ)
             ([ (d_hitch, -3.5), (x_front, -3.5), (x_front, -hw), (d_hitch, -hw) ],
-             "#ab47bc", "Class IV/V: Gương phải"),
-            # Zone 3: MIRROR_LEFT
+             "#ab47bc", "MIRROR_RIGHT (Gương phụ)"),
+            # Zone 3: MIRROR_LEFT (Gương lái)
             ([ (d_hitch, hw), (x_front, hw), (x_front, 3.5), (d_hitch, 3.5) ],
-             "#26a69a", "Class IV/V: Gương trái"),
+             "#26a69a", "MIRROR_LEFT (Gương lái)"),
             # Zone 4: SWEPT_PATH_RIGHT (Bụng cua rơ-moóc phải)
             ([ (x_rear, -4.5), (d_hitch, -4.5), (d_hitch, -hw), (x_rear, -hw) ],
-             "#e53935", "Swept Path: Bụng cua phải"),
+             "#e53935", "SWEPT_PATH_RIGHT (Bụng cua phải)"),
             # Zone 5: SWEPT_PATH_LEFT (Bụng cua rơ-moóc trái)
             ([ (x_rear, hw), (d_hitch, hw), (d_hitch, 4.5), (x_rear, 4.5) ],
-             "#3949ab", "Swept Path: Bụng cua trái"),
-            # Zone 6: REAR_TRAILER (Lùi sau)
+             "#3949ab", "SWEPT_PATH_LEFT (Bụng cua trái)"),
+            # Zone 6: REAR_TRAILER (Lùi đuôi xe)
             ([ (x_rear - 3.5, -hw - 1.0), (x_rear, -hw - 1.0), (x_rear, hw + 1.0), (x_rear - 3.5, hw + 1.0) ],
-             "#d81b60", "R158: Điểm mù lùi")
+             "#d81b60", "REAR_TRAILER (Lùi đuôi xe)")
         ]
 
         for pts, color, label in zones_data:
