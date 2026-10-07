@@ -14,7 +14,7 @@ Cơ sở lý thuyết & Chuẩn tham chiếu:
 import math
 from typing import List, Optional, Tuple, Dict, Any
 import numpy as np
-from shapely.geometry import Point, Polygon
+from shapely.geometry import Point, Polygon, box
 from shapely.ops import unary_union, nearest_points
 
 try:
@@ -352,6 +352,21 @@ class BSRICalculator:
 
         # 4. Nở vùng với khoảng đệm an toàn động C
         dynamic_zone = raw_swept.buffer(total_clearance, resolution=16)
+
+        # ĐỊNH HƯỚNG BẢO VỆ ĐỘNG HỌC:
+        # Khi xe đang tiến về phía trước (speed0 > 0.5 m/s), vệt quét nguy hiểm di chuyển theo hướng tiến.
+        # Mặt sau cản sau xe tại t = 0 không thể quét lùi về phía sau (trừ dung sai 0.2m chống nhiễu).
+        # Cắt bỏ phần buffer lùi ảo phía sau để tránh nhận nhầm xe đi sau vào DHZ của xe đang tiến.
+        if speed0 > 0.5:
+            rear_x0 = -self.rigid_rear_length if vtype == VehicleType.RIGID else self.trail_rear_x
+            rear_clip = box(rear_x0 - 0.20, -60.0, 100.0, 60.0)
+            dynamic_zone = dynamic_zone.intersection(rear_clip)
+        elif speed0 < -0.5:
+            # Ngược lại khi xe đang lùi (speed0 < -0.5 m/s), cản trước không thể quét tiến về phía trước
+            front_x0 = self.rigid_front_length if vtype == VehicleType.RIGID else self.cab_front_x
+            front_clip = box(-100.0, -60.0, front_x0 + 0.20, 60.0)
+            dynamic_zone = dynamic_zone.intersection(front_clip)
+
         return dynamic_zone
 
     def classify_blind_spot_zone(self, x: float, y: float, ego: Optional[EgoVehicleState] = None) -> BlindSpotZone:
@@ -469,8 +484,17 @@ class BSRICalculator:
                 s_temporal = 0.30 * math.exp(- (ttc - 3.5) / 3.0)
             return float(np.clip(s_temporal, 0.0, 1.0)), round(float(ttc), 2)
         else:
-            # Đối tượng đứng yên hoặc đang đi xa dần -> Không có nguy cơ va chạm khẩn về thời gian
-            # Rủi ro thời gian phụ thuộc thuần túy vào khoảng cách cận kề (Proximity baseline)
+            # Đối tượng không tiếp cận (đang đi xa dần hoặc giữ nguyên khoảng cách).
+            # ĐẶC BIỆT: Nếu đối tượng ở phía SAU ĐUÔI XE và xe đang TIẾN VỀ PHÍA TRƯỚC (speed >= 0.5 m/s),
+            # xe chủ đang chạy xa dần đối tượng -> Rủi ro va chạm từ xe chủ = 0.0!
+            vtype = getattr(ego, "vehicle_type", self.vehicle_type)
+            if isinstance(vtype, str):
+                vtype = VehicleType(vtype.upper())
+            ego_rear_x = -self.rigid_rear_length if vtype == VehicleType.RIGID else self.trail_rear_x
+            if ego.speed_mps >= 0.5 and obs.vcs_x < ego_rear_x:
+                return 0.0, None
+
+            # Với các vị trí khác (bên hông/phía trước), giữ mức rủi ro cận kề cơ sở
             s_temporal = 0.20 * math.exp(- r / 4.0)
             return float(np.clip(s_temporal, 0.0, 0.40)), None
 
@@ -480,18 +504,22 @@ class BSRICalculator:
         Ví dụ: Xe đang xi-nhan phải và đánh lái sang phải trong khi có xe máy bên hông phải -> Rủi ro tăng vọt.
         """
         factor = 1.0
+        vtype = getattr(ego, "vehicle_type", self.vehicle_type)
+        if isinstance(vtype, str):
+            vtype = VehicleType(vtype.upper())
+        ego_rear_x = -self.rigid_rear_length if vtype == VehicleType.RIGID else self.trail_rear_x
 
         # Nhận biết hành vi rẽ 100% qua cảm biến IMU (Yaw rate) và góc lái, KHÔNG DÙNG xi-nhan (vì không can thiệp CAN bus)
         is_turning_right = (ego.yaw_rate_rad_s < -0.03) or (ego.steering_angle_deg < -4.0)
         is_turning_left = (ego.yaw_rate_rad_s > 0.03) or (ego.steering_angle_deg > 4.0)
         is_reversing = (ego.gear == "R") or (ego.speed_mps < -0.15)
 
-        # 1. Xe rẽ phải và đối tượng ở bên phải (Y < 0)
-        if is_turning_right and obs.vcs_y < 0.0:
+        # 1. Xe rẽ phải và đối tượng ở bên phải (Y < 0) TRONG PHẠM VI THÂN XE HOẶC PHÍA TRƯỚC
+        if is_turning_right and obs.vcs_y < 0.0 and obs.vcs_x >= ego_rear_x:
             factor *= 1.35
 
-        # 2. Xe rẽ trái và đối tượng ở bên trái (Y > 0)
-        elif is_turning_left and obs.vcs_y > 0.0:
+        # 2. Xe rẽ trái và đối tượng ở bên trái (Y > 0) TRONG PHẠM VI THÂN XE HOẶC PHÍA TRƯỚC
+        elif is_turning_left and obs.vcs_y > 0.0 and obs.vcs_x >= ego_rear_x:
             factor *= 1.35
 
         # 3. Xe đang lùi và đối tượng ở phía sau (X < 0)
@@ -509,19 +537,29 @@ class BSRICalculator:
 
         return factor
 
-    def calculate_blind_spot_factor(self, zone: BlindSpotZone) -> float:
+    def calculate_blind_spot_factor(self, zone: BlindSpotZone, ego: Optional[EgoVehicleState] = None) -> float:
         """
         Tính hệ số rủi ro che khuất nội bộ V_blind (Visibility / Occlusion Risk Multiplier).
         Đây là tham số hiệu chỉnh kỹ thuật nội bộ (heuristic calibration parameter) của mô hình BSRI,
         dùng để tăng độ nhạy cảnh báo tại các khu vực tài xế khó quan sát trực tiếp hoặc qua gương.
         Hoàn toàn không phải là hệ số pháp lý do tiêu chuẩn quốc tế ấn định.
         """
+        is_reversing = ego is not None and ((ego.gear == "R") or (ego.speed_mps < -0.15))
+        is_standstill = ego is not None and abs(ego.speed_mps) < 0.20
+
         if zone in [BlindSpotZone.MIRROR_RIGHT, BlindSpotZone.SWEPT_PATH_RIGHT]:
             return 1.25  # Góc sườn phụ / bụng cua rơ-moóc khó quan sát
         elif zone == BlindSpotZone.CAB_FRONT:
             return 1.20  # Vùng cản trước mũi xe
         elif zone == BlindSpotZone.REAR_TRAILER:
-            return 1.20  # Sau thùng rơ-moóc
+            # Đuôi xe chỉ là điểm mù rủi ro khi xe đang LÙI hoặc DỪNG ĐỖ
+            # Khi xe đang TIẾN về phía trước, đối tượng phía sau là phương tiện đi sau
+            if is_reversing:
+                return 1.25
+            elif is_standstill:
+                return 1.10
+            else:
+                return 0.85
         elif zone in [BlindSpotZone.MIRROR_LEFT, BlindSpotZone.SWEPT_PATH_LEFT]:
             return 1.10  # Góc mù bên lái
         else:
@@ -662,11 +700,23 @@ class BSRICalculator:
         pt = Point(obs.vcs_x, obs.vcs_y)
 
         # 1. Rủi ro Không gian (Spatial Risk) & Kiểm tra xâm nhập DHZ
-        is_in_dhz = bool(dhz_poly.contains(pt))
+        vtype = getattr(ego, "vehicle_type", self.vehicle_type)
+        if isinstance(vtype, str):
+            vtype = VehicleType(vtype.upper())
+        ego_rear_x = -self.rigid_rear_length if vtype == VehicleType.RIGID else self.trail_rear_x
+
+        # Đối tượng ở phía sau đuôi xe khi xe đang TIẾN VỀ PHÍA TRƯỚC (speed >= 0.5 m/s):
+        # Xe đang tiến xa dần, không thể va chạm không gian từ xe chủ
+        is_behind_forward = (ego.speed_mps >= 0.5) and (obs.vcs_x < ego_rear_x)
+
+        is_in_dhz = bool(dhz_poly.contains(pt)) and not is_behind_forward
 
         if is_in_dhz:
             dist_to_dhz = 0.0
             spatial_risk = 1.0
+        elif is_behind_forward:
+            dist_to_dhz = float(abs(obs.vcs_x - ego_rear_x))
+            spatial_risk = 0.0
         else:
             dist_to_dhz = float(dhz_poly.distance(pt))
             # Suy giảm hàm mũ theo khoảng cách tới biên DHZ (d0 = 1.8m)
@@ -680,7 +730,7 @@ class BSRICalculator:
 
         # 4. Phân vùng điểm mù & Hệ số góc mù
         zone = self.classify_blind_spot_zone(obs.vcs_x, obs.vcs_y, ego)
-        blind_factor = self.calculate_blind_spot_factor(zone)
+        blind_factor = self.calculate_blind_spot_factor(zone, ego)
 
         # 5. Hệ số hành vi xe chủ (Maneuver factor)
         maneuver_factor = self.calculate_ego_maneuver_factor(obs, ego)
@@ -826,6 +876,29 @@ class BSRICalculator:
 
         pos_str = f"cách {obs.distance_m:.1f}m tại {zone.value}"
         ttc_str = f", TTC: {ttc:.1f}s" if ttc is not None else ""
+
+        vtype = getattr(ego, "vehicle_type", self.vehicle_type)
+        if isinstance(vtype, str):
+            vtype = VehicleType(vtype.upper())
+        ego_rear_x = -self.rigid_rear_length if vtype == VehicleType.RIGID else self.trail_rear_x
+        is_behind_forward = (ego.speed_mps >= 0.5) and (obs.vcs_x < ego_rear_x)
+
+        # Xử lý riêng khi phương tiện ở phía sau và xe đang tiến về phía trước
+        # (Theo ISO 22839 / ADAS: Tuyệt đối không phanh gấp vì sẽ gây tai nạn đâm đuôi)
+        if is_behind_forward:
+            if level == RiskLevel.CRITICAL:
+                exp = f"CẢNH BÁO PHÍA SAU! {cname_vi} #{obs.track_id} bám quá sát hoặc tiếp cận nhanh từ sau đuôi ({pos_str}{ttc_str})!"
+                rec = "DUY TRÌ TỐC ĐỘ, TUYỆT ĐỐI KHÔNG PHANH GẤP ĐỂ TRÁNH BỊ ĐÂM ĐUÔI! Quan sát gương chiếu hậu."
+            elif level == RiskLevel.WARNING:
+                exp = f"CHÚ Ý PHÍA SAU: {cname_vi} #{obs.track_id} đang di chuyển phía sau đuôi xe ({pos_str}{ttc_str})."
+                rec = "Duy trì tốc độ ổn định, quan sát qua gương chiếu hậu, không phanh đột ngột."
+            elif level == RiskLevel.CAUTION:
+                exp = f"Phương tiện phía sau: {cname_vi} #{obs.track_id} ({pos_str})."
+                rec = "Duy trì tốc độ và chú ý quan sát gương chiếu hậu."
+            else:
+                exp = f"{cname_vi} #{obs.track_id} ở phía sau ở cự ly an toàn ({pos_str})."
+                rec = "Tiếp tục lộ trình bình thường."
+            return exp, rec
 
         if level == RiskLevel.CRITICAL:
             if is_in_dhz:
